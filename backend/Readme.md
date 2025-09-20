@@ -45,7 +45,7 @@ The sentiment analysis model is powered by Hugging Face Transformers.
 ## Model Details
 - Default: DistilBERT (English sentiment analysis)
 - For multilingual support: Use `cardiffnlp/twitter-xlm-roberta-base-sentiment`
-- Predicts sentiment (`positive`, `neutral`, `negative`) and confidence score
+- Predicts sentiment (`positive`, `neutral`, `negative`) and confidence score.
 
 ## How It Works
 - The model is loaded in the backend using the `pipeline` API.
