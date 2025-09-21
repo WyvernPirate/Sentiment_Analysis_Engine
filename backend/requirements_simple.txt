@@ -1,0 +1,14 @@
+# Minimal requirements for simple testing
+flask
+flask-cors
+
+# Web scraping dependencies (no Facebook API needed)
+requests
+beautifulsoup4
+lxml
+
+# Optional: For better English sentiment analysis
+# Uncomment these lines for enhanced English sentiment:
+# transformers
+# torch
+# tensorflow

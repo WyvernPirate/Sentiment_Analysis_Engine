@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 from datasets import load_dataset
 from transformers import (
     AutoModelForSequenceClassification,
@@ -6,10 +7,12 @@ from transformers import (
     TrainingArguments,
     Trainer,
 )
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
+import os
 
 # --- 1. Configuration ---
 MODEL_NAME = "xlm-roberta-base"
-DATASET_PATH = "c:/VS/Engine/backend/setswana_sentiment_dataset.csv"
+DATASET_PATH = os.path.join(os.path.dirname(__file__), "setswana_sentiment_dataset.csv")
 OUTPUT_DIR = "./sentiment_model_setswana"
 NUM_LABELS = 3 # 0: Negative, 1: Neutral, 2: Positive
 
@@ -46,25 +49,41 @@ def main():
     tokenized_train_dataset = train_dataset.map(tokenize_function, batched=True)
     tokenized_eval_dataset = eval_dataset.map(tokenize_function, batched=True)
 
-    # --- 5. Set Up Training ---
+    # --- 5. Define Evaluation Metrics ---
+    def compute_metrics(eval_pred):
+        predictions, labels = eval_pred
+        predictions = np.argmax(predictions, axis=1)
+        precision, recall, f1, _ = precision_recall_fscore_support(labels, predictions, average='weighted')
+        acc = accuracy_score(labels, predictions)
+        return {
+            'accuracy': acc,
+            'f1': f1,
+            'precision': precision,
+            'recall': recall
+        }
+
+    # --- 6. Set Up Training ---
     # Check if a GPU is available and use it, otherwise use CPU
     device = "cuda:0" if torch.cuda.is_available() else "cpu"
     print(f"Training on device: {device}")
     model.to(device)
 
     # These arguments control the fine-tuning process
+    # Reduced epochs due to small dataset size to prevent overfitting
     training_args = TrainingArguments(
         output_dir=OUTPUT_DIR,
-        num_train_epochs=10,  # We use more epochs because our dataset is very small
-        per_device_train_batch_size=4,
-        per_device_eval_batch_size=4,
-        warmup_steps=10,
+        num_train_epochs=5,  # Reduced from 10 due to small dataset
+        per_device_train_batch_size=2,  # Smaller batch size for small dataset
+        per_device_eval_batch_size=2,
+        warmup_steps=5,  # Reduced warmup steps
         weight_decay=0.01,
         logging_dir='./logs',
-        logging_steps=10,
+        logging_steps=5,
         evaluation_strategy="epoch", # Evaluate at the end of each epoch
         save_strategy="epoch",     # Save the model at the end of each epoch
         load_best_model_at_end=True, # Load the best performing model when training is done
+        metric_for_best_model="accuracy",
+        greater_is_better=True,
     )
 
     # The Trainer class handles the entire training loop
@@ -73,16 +92,24 @@ def main():
         args=training_args,
         train_dataset=tokenized_train_dataset,
         eval_dataset=tokenized_eval_dataset,
+        compute_metrics=compute_metrics,
     )
 
-    # --- 6. Start Training ---
+    # --- 7. Start Training ---
     print("Starting model fine-tuning...")
     trainer.train()
 
-    # --- 7. Save the Final Model ---
+    # --- 8. Save the Final Model ---
     print(f"Training complete. Saving the best model to {OUTPUT_DIR}")
     trainer.save_model(OUTPUT_DIR)
     tokenizer.save_pretrained(OUTPUT_DIR)
+    
+    # --- 9. Final Evaluation ---
+    print("\nFinal evaluation on test set:")
+    eval_results = trainer.evaluate()
+    for key, value in eval_results.items():
+        print(f"{key}: {value:.4f}")
+    
     print("Script finished.")
 
 if __name__ == "__main__":

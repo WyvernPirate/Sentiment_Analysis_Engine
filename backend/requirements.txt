@@ -1,5 +1,34 @@
+# Core Flask API
 flask
 flask-cors
+flask-sqlalchemy
+flask-migrate
+
+# ML and NLP
 transformers
 torch
 datasets
+scikit-learn
+numpy
+pandas
+
+# Social Media APIs
+tweepy
+facebook-sdk
+requests
+
+# Database
+psycopg2-binary
+sqlalchemy
+
+# Background Tasks
+celery
+redis
+
+# Data Processing
+python-dotenv
+schedule
+
+# Utilities
+python-dateutil
+pytz
