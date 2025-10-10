@@ -1,379 +1,379 @@
 [
   {
-    "platform": "facebook",
-    "post_id": "facebook_mock_1",
+    "platform": "twitter",
+    "post_id": "twitter_mock_1",
     "text": "BDP's new economic policy looks promising for Botswana's future #BDP2024",
     "author": "user_1",
-    "created_at": "2025-09-19T18:09:21.745530",
-    "likes": 86,
-    "shares": 3,
-    "comments": 24,
+    "created_at": "2025-09-26T17:52:22.335606",
+    "likes": 34,
+    "shares": 1,
+    "comments": 0,
     "source": "mock_data_generator",
     "hashtags": [
       "#BDP2024"
     ],
     "id": 1,
-    "collected_at": "2025-09-21T01:09:21.746217"
+    "collected_at": "2025-09-28T21:52:22.336023"
   },
   {
-    "platform": "twitter",
-    "post_id": "twitter_mock_2",
+    "platform": "facebook",
+    "post_id": "facebook_mock_2",
     "text": "Ke dumela gore UDC e tla fetola Botswana #UDC2024 #Change",
     "author": "user_2",
-    "created_at": "2025-09-19T05:09:21.745581",
-    "likes": 139,
-    "shares": 24,
-    "comments": 3,
+    "created_at": "2025-09-27T22:52:22.335653",
+    "likes": 38,
+    "shares": 20,
+    "comments": 27,
     "source": "mock_data_generator",
     "hashtags": [
       "#UDC2024",
       "#Change"
     ],
     "id": 2,
-    "collected_at": "2025-09-21T01:09:21.746221"
+    "collected_at": "2025-09-28T21:52:22.336028"
   },
   {
-    "platform": "twitter",
-    "post_id": "twitter_mock_3",
+    "platform": "facebook",
+    "post_id": "facebook_mock_3",
     "text": "Masisi's leadership has brought stability to our nation",
     "author": "user_3",
-    "created_at": "2025-09-18T09:09:21.745592",
-    "likes": 50,
-    "shares": 50,
-    "comments": 0,
+    "created_at": "2025-09-27T19:52:22.335665",
+    "likes": 148,
+    "shares": 1,
+    "comments": 29,
     "source": "mock_data_generator",
     "hashtags": [],
     "id": 3,
-    "collected_at": "2025-09-21T01:09:21.746223"
+    "collected_at": "2025-09-28T21:52:22.336031"
   },
   {
     "platform": "instagram",
     "post_id": "instagram_mock_4",
     "text": "Boko o bua nnete ka mathata a rona a ikonomi #UDC",
     "author": "user_4",
-    "created_at": "2025-09-18T18:09:21.745598",
-    "likes": 74,
-    "shares": 42,
-    "comments": 10,
+    "created_at": "2025-09-26T18:52:22.335675",
+    "likes": 113,
+    "shares": 25,
+    "comments": 7,
     "source": "mock_data_generator",
     "hashtags": [
       "#UDC"
     ],
     "id": 4,
-    "collected_at": "2025-09-21T01:09:21.746224"
+    "collected_at": "2025-09-28T21:52:22.336034"
   },
   {
     "platform": "instagram",
     "post_id": "instagram_mock_5",
     "text": "The government needs to do more for youth employment #BotswanaYouth",
     "author": "user_5",
-    "created_at": "2025-09-20T19:09:21.745605",
-    "likes": 51,
-    "shares": 48,
-    "comments": 4,
+    "created_at": "2025-09-28T03:52:22.335685",
+    "likes": 149,
+    "shares": 41,
+    "comments": 9,
     "source": "mock_data_generator",
     "hashtags": [
       "#BotswanaYouth"
     ],
     "id": 5,
-    "collected_at": "2025-09-21T01:09:21.746225"
+    "collected_at": "2025-09-28T21:52:22.336037"
   },
   {
     "platform": "facebook",
     "post_id": "facebook_mock_6",
     "text": "Mmuso o tshwanetse go thusa babereki ba ba latlhegileng #Jobs",
     "author": "user_6",
-    "created_at": "2025-09-20T18:09:21.745611",
-    "likes": 13,
-    "shares": 47,
-    "comments": 17,
+    "created_at": "2025-09-26T04:52:22.335694",
+    "likes": 27,
+    "shares": 22,
+    "comments": 28,
     "source": "mock_data_generator",
     "hashtags": [
       "#Jobs"
     ],
     "id": 6,
-    "collected_at": "2025-09-21T01:09:21.746227"
+    "collected_at": "2025-09-28T21:52:22.336040"
   },
   {
-    "platform": "twitter",
-    "post_id": "twitter_mock_7",
+    "platform": "instagram",
+    "post_id": "instagram_mock_7",
     "text": "Great to see progress in Gaborone infrastructure development",
     "author": "user_7",
-    "created_at": "2025-09-19T22:09:21.745618",
-    "likes": 68,
-    "shares": 12,
-    "comments": 20,
+    "created_at": "2025-09-27T02:52:22.335703",
+    "likes": 71,
+    "shares": 32,
+    "comments": 6,
     "source": "mock_data_generator",
     "hashtags": [],
     "id": 7,
-    "collected_at": "2025-09-21T01:09:21.746228"
+    "collected_at": "2025-09-28T21:52:22.336043"
   },
   {
     "platform": "twitter",
     "post_id": "twitter_mock_8",
     "text": "Palamente e tshwanetse go sekaseka molao o mosha #Parliament",
     "author": "user_8",
-    "created_at": "2025-09-19T02:09:21.745623",
-    "likes": 78,
-    "shares": 23,
-    "comments": 2,
+    "created_at": "2025-09-27T09:52:22.335713",
+    "likes": 19,
+    "shares": 48,
+    "comments": 25,
     "source": "mock_data_generator",
     "hashtags": [
       "#Parliament"
     ],
     "id": 8,
-    "collected_at": "2025-09-21T01:09:21.746230"
+    "collected_at": "2025-09-28T21:52:22.336046"
   },
   {
     "platform": "instagram",
     "post_id": "instagram_mock_9",
     "text": "BCP brings fresh ideas to Botswana politics #BCP2024",
     "author": "user_9",
-    "created_at": "2025-09-18T17:09:21.745630",
-    "likes": 37,
-    "shares": 39,
-    "comments": 16,
+    "created_at": "2025-09-26T17:52:22.335724",
+    "likes": 93,
+    "shares": 41,
+    "comments": 28,
     "source": "mock_data_generator",
     "hashtags": [
       "#BCP2024"
     ],
     "id": 9,
-    "collected_at": "2025-09-21T01:09:21.746231"
+    "collected_at": "2025-09-28T21:52:22.336049"
   },
   {
-    "platform": "facebook",
-    "post_id": "facebook_mock_10",
+    "platform": "twitter",
+    "post_id": "twitter_mock_10",
     "text": "Setšhaba se batla diphetogo tse di siameng #BotswanaFirst",
     "author": "user_10",
-    "created_at": "2025-09-20T05:09:21.745636",
-    "likes": 99,
-    "shares": 22,
-    "comments": 4,
+    "created_at": "2025-09-26T05:52:22.335734",
+    "likes": 56,
+    "shares": 21,
+    "comments": 22,
     "source": "mock_data_generator",
     "hashtags": [
       "#BotswanaFirst"
     ],
     "id": 10,
-    "collected_at": "2025-09-21T01:09:21.746232"
+    "collected_at": "2025-09-28T21:52:22.336053"
   },
   {
-    "platform": "facebook",
-    "post_id": "facebook_mock_11",
+    "platform": "twitter",
+    "post_id": "twitter_mock_11",
     "text": "The education system needs urgent reform in Botswana",
     "author": "user_11",
-    "created_at": "2025-09-20T19:09:21.745643",
-    "likes": 146,
-    "shares": 19,
+    "created_at": "2025-09-25T21:52:22.335746",
+    "likes": 142,
+    "shares": 37,
     "comments": 15,
     "source": "mock_data_generator",
     "hashtags": [],
     "id": 11,
-    "collected_at": "2025-09-21T01:09:21.746234"
+    "collected_at": "2025-09-28T21:52:22.336056"
   },
   {
     "platform": "instagram",
     "post_id": "instagram_mock_12",
     "text": "Baithuti ba batla thuso ya mmuso go ithuta #Education",
     "author": "user_12",
-    "created_at": "2025-09-18T11:09:21.745649",
-    "likes": 82,
-    "shares": 29,
-    "comments": 26,
+    "created_at": "2025-09-28T17:52:22.335756",
+    "likes": 36,
+    "shares": 2,
+    "comments": 18,
     "source": "mock_data_generator",
     "hashtags": [
       "#Education"
     ],
     "id": 12,
-    "collected_at": "2025-09-21T01:09:21.746235"
+    "collected_at": "2025-09-28T21:52:22.336060"
   },
   {
-    "platform": "instagram",
-    "post_id": "instagram_mock_13",
+    "platform": "facebook",
+    "post_id": "facebook_mock_13",
     "text": "Healthcare improvements are needed across the country",
     "author": "user_13",
-    "created_at": "2025-09-18T20:09:21.745655",
-    "likes": 106,
-    "shares": 27,
-    "comments": 7,
+    "created_at": "2025-09-28T01:52:22.335766",
+    "likes": 5,
+    "shares": 49,
+    "comments": 18,
     "source": "mock_data_generator",
     "hashtags": [],
     "id": 13,
-    "collected_at": "2025-09-21T01:09:21.746236"
+    "collected_at": "2025-09-28T21:52:22.336063"
   },
   {
     "platform": "twitter",
     "post_id": "twitter_mock_14",
     "text": "Boitekanelo jwa setšhaba bo botlhokwa thata #Health",
     "author": "user_14",
-    "created_at": "2025-09-19T21:09:21.745663",
-    "likes": 37,
-    "shares": 47,
-    "comments": 14,
+    "created_at": "2025-09-28T02:52:22.335787",
+    "likes": 30,
+    "shares": 27,
+    "comments": 3,
     "source": "mock_data_generator",
     "hashtags": [
       "#Health"
     ],
     "id": 14,
-    "collected_at": "2025-09-21T01:09:21.746238"
-  },
-  {
-    "platform": "facebook",
-    "post_id": "facebook_mock_15",
-    "text": "Mining revenue should benefit all Batswana equally",
-    "author": "user_15",
-    "created_at": "2025-09-19T06:09:21.745669",
-    "likes": 127,
-    "shares": 32,
-    "comments": 5,
-    "source": "mock_data_generator",
-    "hashtags": [],
-    "id": 15,
-    "collected_at": "2025-09-21T01:09:21.746239"
+    "collected_at": "2025-09-28T21:52:22.336066"
   },
   {
     "platform": "twitter",
-    "post_id": "twitter_mock_16",
+    "post_id": "twitter_mock_15",
+    "text": "Mining revenue should benefit all Batswana equally",
+    "author": "user_15",
+    "created_at": "2025-09-26T06:52:22.335797",
+    "likes": 43,
+    "shares": 43,
+    "comments": 8,
+    "source": "mock_data_generator",
+    "hashtags": [],
+    "id": 15,
+    "collected_at": "2025-09-28T21:52:22.336069"
+  },
+  {
+    "platform": "facebook",
+    "post_id": "facebook_mock_16",
     "text": "Merafo e tshwanetse go thusa setšhaba sotlhe #Mining",
     "author": "user_16",
-    "created_at": "2025-09-19T12:09:21.745680",
-    "likes": 118,
-    "shares": 33,
-    "comments": 26,
+    "created_at": "2025-09-27T23:52:22.335810",
+    "likes": 64,
+    "shares": 36,
+    "comments": 25,
     "source": "mock_data_generator",
     "hashtags": [
       "#Mining"
     ],
     "id": 16,
-    "collected_at": "2025-09-21T01:09:21.746241"
+    "collected_at": "2025-09-28T21:52:22.336072"
   },
   {
     "platform": "news_website",
     "post_id": "news_1",
     "text": "President Masisi announces new economic recovery plan",
     "author": "Botswana News",
-    "created_at": "2025-09-19T09:09:21.745878",
+    "created_at": "2025-09-26T22:52:22.335883",
     "likes": 0,
-    "shares": 20,
-    "comments": 8,
+    "shares": 21,
+    "comments": 0,
     "source": "news_aggregator",
     "id": 17,
-    "collected_at": "2025-09-21T01:09:21.746243"
+    "collected_at": "2025-09-28T21:52:22.336075"
   },
   {
     "platform": "news_website",
     "post_id": "news_2",
     "text": "UDC leader Boko criticizes government's handling of unemployment",
     "author": "Botswana News",
-    "created_at": "2025-09-19T09:09:21.745891",
+    "created_at": "2025-09-27T20:52:22.335893",
     "likes": 0,
-    "shares": 23,
-    "comments": 2,
+    "shares": 5,
+    "comments": 7,
     "source": "news_aggregator",
     "id": 18,
-    "collected_at": "2025-09-21T01:09:21.746244"
+    "collected_at": "2025-09-28T21:52:22.336078"
   },
   {
     "platform": "news_website",
     "post_id": "news_3",
     "text": "Parliament debates new mining legislation",
     "author": "Botswana News",
-    "created_at": "2025-09-19T23:09:21.745897",
+    "created_at": "2025-09-28T01:52:22.335901",
     "likes": 0,
-    "shares": 15,
-    "comments": 1,
+    "shares": 18,
+    "comments": 4,
     "source": "news_aggregator",
     "id": 19,
-    "collected_at": "2025-09-21T01:09:21.746246"
+    "collected_at": "2025-09-28T21:52:22.336081"
   },
   {
     "platform": "news_website",
     "post_id": "news_4",
     "text": "BCP calls for education reform in rural areas",
     "author": "Botswana News",
-    "created_at": "2025-09-19T11:09:21.745901",
+    "created_at": "2025-09-27T22:52:22.335909",
     "likes": 0,
     "shares": 25,
-    "comments": 15,
+    "comments": 0,
     "source": "news_aggregator",
     "id": 20,
-    "collected_at": "2025-09-21T01:09:21.746247"
+    "collected_at": "2025-09-28T21:52:22.336084"
   },
   {
     "platform": "news_website",
     "post_id": "news_5",
     "text": "Gaborone residents protest water shortages",
     "author": "Botswana News",
-    "created_at": "2025-09-19T22:09:21.745905",
+    "created_at": "2025-09-27T03:52:22.335916",
     "likes": 0,
-    "shares": 22,
-    "comments": 11,
+    "shares": 18,
+    "comments": 8,
     "source": "news_aggregator",
     "id": 21,
-    "collected_at": "2025-09-21T01:09:21.746248"
+    "collected_at": "2025-09-28T21:52:22.336088"
   },
   {
     "platform": "news_website",
     "post_id": "news_6",
     "text": "Botswana's GDP shows signs of recovery",
     "author": "Botswana News",
-    "created_at": "2025-09-19T14:09:21.745909",
+    "created_at": "2025-09-28T05:52:22.335924",
     "likes": 0,
-    "shares": 14,
-    "comments": 6,
+    "shares": 19,
+    "comments": 3,
     "source": "news_aggregator",
     "id": 22,
-    "collected_at": "2025-09-21T01:09:21.746250"
+    "collected_at": "2025-09-28T21:52:22.336091"
   },
   {
     "platform": "news_website",
     "post_id": "news_7",
     "text": "Opposition parties unite on healthcare issues",
     "author": "Botswana News",
-    "created_at": "2025-09-20T10:09:21.745912",
+    "created_at": "2025-09-27T16:52:22.335931",
     "likes": 0,
-    "shares": 24,
-    "comments": 4,
+    "shares": 20,
+    "comments": 9,
     "source": "news_aggregator",
     "id": 23,
-    "collected_at": "2025-09-21T01:09:21.746251"
+    "collected_at": "2025-09-28T21:52:22.336094"
   },
   {
     "platform": "news_website",
     "post_id": "news_8",
     "text": "Traditional leaders meet with government officials",
     "author": "Botswana News",
-    "created_at": "2025-09-19T18:09:21.745916",
+    "created_at": "2025-09-28T02:52:22.335939",
     "likes": 0,
-    "shares": 17,
-    "comments": 13,
+    "shares": 15,
+    "comments": 3,
     "source": "news_aggregator",
     "id": 24,
-    "collected_at": "2025-09-21T01:09:21.746252"
+    "collected_at": "2025-09-28T21:52:22.336097"
   },
   {
     "platform": "news_website",
     "post_id": "news_9",
     "text": "Youth unemployment remains a key challenge",
     "author": "Botswana News",
-    "created_at": "2025-09-19T19:09:21.745920",
+    "created_at": "2025-09-26T22:52:22.335947",
     "likes": 0,
-    "shares": 11,
+    "shares": 8,
     "comments": 5,
     "source": "news_aggregator",
     "id": 25,
-    "collected_at": "2025-09-21T01:09:21.746254"
+    "collected_at": "2025-09-28T21:52:22.336100"
   },
   {
     "platform": "news_website",
     "post_id": "news_10",
     "text": "New infrastructure projects announced for northern regions",
     "author": "Botswana News",
-    "created_at": "2025-09-20T05:09:21.745924",
+    "created_at": "2025-09-28T13:52:22.335955",
     "likes": 0,
-    "shares": 12,
-    "comments": 15,
+    "shares": 23,
+    "comments": 9,
     "source": "news_aggregator",
     "id": 26,
-    "collected_at": "2025-09-21T01:09:21.746256"
+    "collected_at": "2025-09-28T21:52:22.336103"
   }
 ]
