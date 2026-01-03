@@ -19,6 +19,10 @@ from data_storage import data_storage
 app = Flask(__name__)
 CORS(app)
 
+# Feature toggle: enable Setswana-English code-switching and lexicon logic.
+# Default is False to focus on an English-first baseline deliverable.
+USE_CODE_SWITCHING = os.environ.get('USE_CODE_SWITCHING', 'false').lower() == 'true'
+
 # Load dynamic Setswana lexicon
 def get_setswana_lexicon():
     """Get the current Setswana lexicon from the lexicon manager"""
@@ -81,16 +85,26 @@ POLITICAL_ENTITIES = {
 
 def detect_language_and_code_switching(text):
     """Enhanced language detection for Setswana-English code-switching"""
+    # If code-switching support is disabled, short-circuit to English-only
+    if not USE_CODE_SWITCHING:
+        words = re.findall(r'\b\w+\b', text.lower())
+        return "English", False, {
+            'setswana_words_found': [],
+            'setswana_ratio': 0.0,
+            'total_words': len(words),
+            'setswana_word_count': 0
+        }
+
     words = re.findall(r'\b\w+\b', text.lower())
     total_words = len(words)
-    
+
     if total_words == 0:
         return "unknown", False, {}
-    
+
     # Count Setswana indicators
     setswana_count = 0
     detected_setswana_words = []
-    
+
     for word in words:
         if word in SETSWANA_LEXICON['common_words']:
             setswana_count += 1
@@ -104,9 +118,9 @@ def detect_language_and_code_switching(text):
         elif word in SETSWANA_LEXICON['political']:
             setswana_count += 1
             detected_setswana_words.append(f"{word} (political)")
-    
+
     setswana_ratio = setswana_count / total_words
-    
+
     # Determine language
     if setswana_ratio > 0.6:
         language = "Setswana"
@@ -117,7 +131,7 @@ def detect_language_and_code_switching(text):
     else:
         language = "English"
         code_switching = False
-    
+
     return language, code_switching, {
         'setswana_words_found': detected_setswana_words,
         'setswana_ratio': round(setswana_ratio, 2),
@@ -226,10 +240,19 @@ def analyze_setswana_sentiment(text):
 
 def analyze_hybrid_sentiment(text, language, code_switching):
     """Hybrid sentiment analysis combining English and Setswana"""
-    
+    # If code-switching is disabled, fall back to English-only analysis
+    if not USE_CODE_SWITCHING:
+        eng_sentiment, eng_confidence, eng_details = analyze_english_sentiment(text)
+        return eng_sentiment, eng_confidence, {
+            'model_used': 'english_only',
+            'english_analysis': {'sentiment': eng_sentiment, 'confidence': eng_confidence, 'details': eng_details},
+            'setswana_analysis': {'sentiment': None, 'confidence': 0.0, 'words': {}},
+            'combination_logic': 'code-switching disabled'
+        }
+
     # Get English sentiment
     eng_sentiment, eng_confidence, eng_details = analyze_english_sentiment(text)
-    
+
     # Get Setswana sentiment
     set_sentiment, set_confidence, set_words = analyze_setswana_sentiment(text)
     
@@ -871,7 +894,6 @@ def collect_web_data():
         
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 @app.route('/api/collect/status', methods=['GET'])
 def collection_status():
     """Get status of data collection capabilities"""
@@ -919,6 +941,60 @@ def collection_status():
             ]
         })
         
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/sentiment/analyze', methods=['POST'])
+def analyze_sentiment_compat():
+    """Compatibility endpoint used by the frontend client: POST /api/sentiment/analyze
+    Reuses the helper functions in this module to produce the same response shape as
+    `/api/sentiment`.
+    """
+    try:
+        data = request.get_json()
+        text = data.get('text', '').strip()
+
+        if not text:
+            return jsonify({"error": "No text provided"}), 400
+
+        language, code_switching, lang_details = detect_language_and_code_switching(text)
+        sentiment, confidence, analysis_details = analyze_hybrid_sentiment(text, language, code_switching)
+        political_entities, political_keywords = extract_political_context(text)
+
+        result = {
+            "sentiment": sentiment,
+            "confidence": round(confidence, 3),
+            "detected_language": language,
+            "code_switching_detected": code_switching,
+            "model_used": analysis_details.get('model_used', 'unknown'),
+            "language_analysis": lang_details,
+            "sentiment_analysis": analysis_details,
+            "sentiment_words": analysis_details.get('setswana_analysis', {}).get('words', {}),
+            "political_context": {
+                "entities": political_entities,
+                "keywords": political_keywords
+            },
+            "text_length": len(text),
+            "word_count": len(re.findall(r'\b\w+\b', text))
+        }
+
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
+
+
+@app.route('/api/admin/data-collection/trigger', methods=['POST'])
+def admin_trigger_collection():
+    """Endpoint to trigger data collection from the admin UI/frontend.
+    Delegates to `data_storage.collect_and_store_data`.
+    """
+    try:
+        result = data_storage.collect_and_store_data(force_refresh=True)
+        if result.get('success'):
+            return jsonify({"message": "Data collection triggered", "results": result})
+        else:
+            return jsonify({"message": "Data collection failed", "results": result}), 500
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 

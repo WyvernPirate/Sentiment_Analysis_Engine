@@ -50,3 +50,10 @@ class Config:
     COLLECTION_INTERVAL_MINUTES = 15  # How often to collect new data
     MAX_TWEETS_PER_COLLECTION = 100
     DATA_RETENTION_DAYS = 30  # How long to keep raw social media data
+
+    # Feature toggles
+    # Set to True to enable Setswana-English code-switching detection and
+    # lexicon-enhanced analysis. Default is False for baseline deliverable.
+    USE_CODE_SWITCHING = os.environ.get('USE_CODE_SWITCHING', 'false').lower() == 'true'
+    # Baseline model path (scikit-learn pipeline). Used when transformers is not available.
+    BASELINE_MODEL_PATH = os.environ.get('BASELINE_MODEL_PATH') or './models/baseline_sentiment_model.joblib'

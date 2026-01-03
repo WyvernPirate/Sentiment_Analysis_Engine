@@ -178,21 +178,72 @@ class FacebookCollector:
             db.session.rollback()
             return 0
 
+from web_scraper import web_scraper
+
 def collect_all_data():
-    """Main function to collect data from all sources"""
-    logger.info("Starting data collection...")
+    """Main function to collect data from all sources (APIs + Web Scraping)"""
+    logger.info("Starting comprehensive data collection...")
     
+    # 1. API Collection (Twitter/Facebook)
     twitter_collector = TwitterCollector()
     facebook_collector = FacebookCollector()
     
     twitter_count = twitter_collector.collect_political_tweets()
     facebook_count = facebook_collector.collect_political_posts()
     
-    total_collected = twitter_count + facebook_count
-    logger.info(f"Data collection complete. Total new posts: {total_collected}")
+    # 2. Web Scraping Collection (Primary fallback and additional source)
+    logger.info("Triggering web scraping collection...")
+    web_scraping_results = web_scraper.collect_all_data(max_per_source=10)
+    
+    # Process and save web scraped data to DB
+    web_collected_count = 0
+    for source_type, items in web_scraping_results.items():
+        for item in items:
+            try:
+                # Check if already exists
+                existing = SocialMediaPost.query.filter_by(
+                    platform=item['platform'],
+                    post_id=item['post_id']
+                ).first()
+                
+                if existing:
+                    continue
+                
+                # Handle potential missing fields from different scrapers
+                created_at_val = item.get('created_at')
+                if isinstance(created_at_val, str):
+                    try:
+                        created_at_val = datetime.fromisoformat(created_at_val.replace('Z', '+00:00'))
+                    except ValueError:
+                        created_at_val = datetime.utcnow()
+                else:
+                    created_at_val = datetime.utcnow()
+
+                post = SocialMediaPost(
+                    platform=item['platform'],
+                    post_id=item['post_id'],
+                    text=item['text'],
+                    author=item.get('author'),
+                    created_at=created_at_val,
+                    likes=item.get('likes', 0),
+                    shares=item.get('shares', 0),
+                    comments=item.get('comments', 0),
+                    raw_data=json.dumps(item)
+                )
+                db.session.add(post)
+                web_collected_count += 1
+            except Exception as e:
+                logger.error(f"Error saving scraped item {item.get('post_id')}: {e}")
+                continue
+    
+    db.session.commit()
+    
+    total_collected = twitter_count + facebook_count + web_collected_count
+    logger.info(f"Data collection complete. Total new posts: {total_collected} (API: {twitter_count + facebook_count}, Web: {web_collected_count})")
     
     return {
-        'twitter': twitter_count,
-        'facebook': facebook_count,
+        'twitter_api': twitter_count,
+        'facebook_api': facebook_count,
+        'web_scraping': web_collected_count,
         'total': total_collected
     }
