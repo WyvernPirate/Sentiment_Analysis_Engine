@@ -1,91 +1,52 @@
-"""
-Sentiment Analysis API Routes
-"""
 from flask import Blueprint, request, jsonify
 from services.sentiment_service import sentiment_service
-from utils.validators import validate_text_input
+from services.lexicon_service import lexicon_service
+import re
 
 sentiment_bp = Blueprint('sentiment', __name__)
 
 @sentiment_bp.route('/analyze', methods=['POST'])
-def analyze_sentiment():
-    """Analyze sentiment of provided text"""
+def analyze():
     try:
         data = request.get_json()
-        
-        # Validate input
-        validation_result = validate_text_input(data)
-        if not validation_result['valid']:
-            return jsonify({"error": validation_result['message']}), 400
-        
         text = data.get('text', '').strip()
         
-        # Analyze sentiment
-        result = sentiment_service.analyze_text(text)
+        if not text:
+            return jsonify({"error": "No text provided"}), 400
         
-        if not result:
-            return jsonify({"error": "Analysis failed"}), 500
+        lexicon = lexicon_service.legacy_lexicon
         
-        return jsonify(result)
+        # Language detection
+        lang, code_switching, lang_details = sentiment_service.detect_language(text, lexicon)
         
-    except Exception as e:
-        return jsonify({"error": f"Analysis failed: {str(e)}"}), 500
-
-@sentiment_bp.route('/batch', methods=['POST'])
-def analyze_batch():
-    """Analyze sentiment for multiple texts"""
-    try:
-        data = request.get_json()
-        texts = data.get('texts', [])
+        # Hybrid analysis (simplified for now to match core logic)
+        eng_sent, eng_conf, eng_details = sentiment_service.analyze_english_sentiment(text)
+        set_sent, set_conf = sentiment_service.analyze_setswana_sentiment(text, lexicon)
         
-        if not texts or not isinstance(texts, list):
-            return jsonify({"error": "texts array is required"}), 400
+        # Determine final (simple blend)
+        final_sentiment = eng_sent
+        final_confidence = eng_conf
         
-        if len(texts) > 100:  # Limit batch size
-            return jsonify({"error": "Maximum 100 texts per batch"}), 400
-        
-        results = []
-        for i, text in enumerate(texts):
-            if not text or not isinstance(text, str):
-                results.append({"error": f"Invalid text at index {i}"})
-                continue
+        if lang == "Setswana":
+            final_sentiment = set_sent
+            final_confidence = set_conf
+        elif code_switching:
+            if set_sent != "neutral":
+                final_sentiment = set_sent
+                final_confidence = (set_conf + eng_conf) / 2
                 
-            result = sentiment_service.analyze_text(text.strip())
-            results.append(result if result else {"error": "Analysis failed"})
+        # Political context
+        entities, keywords = sentiment_service.extract_political_context(text, lexicon)
         
         return jsonify({
-            "results": results,
-            "total": len(texts),
-            "successful": len([r for r in results if 'error' not in r])
+            "sentiment": final_sentiment,
+            "confidence": round(final_confidence, 3),
+            "detected_language": lang,
+            "code_switching_detected": code_switching,
+            "language_analysis": lang_details,
+            "political_context": {"entities": entities, "keywords": keywords},
+            "word_count": len(re.findall(r'\b\w+\b', text))
         })
         
     except Exception as e:
-        return jsonify({"error": f"Batch analysis failed: {str(e)}"}), 500
-
-@sentiment_bp.route('/feedback', methods=['POST'])
-def submit_feedback():
-    """Submit feedback on sentiment analysis"""
-    try:
-        data = request.get_json()
-        
-        required_fields = ['text', 'predicted_sentiment', 'user_sentiment']
-        for field in required_fields:
-            if field not in data:
-                return jsonify({"error": f"Field '{field}' is required"}), 400
-        
-        result = sentiment_service.collect_feedback(
-            text=data['text'],
-            predicted_sentiment=data['predicted_sentiment'],
-            predicted_confidence=data.get('predicted_confidence', 0.0),
-            user_sentiment=data['user_sentiment'],
-            user_confidence=data.get('user_confidence', 1.0),
-            user_id=data.get('user_id')
-        )
-        
-        if result:
-            return jsonify({"message": "Feedback submitted successfully"})
-        else:
-            return jsonify({"error": "Failed to submit feedback"}), 500
-            
-    except Exception as e:
-        return jsonify({"error": f"Feedback submission failed: {str(e)}"}), 500
+        return jsonify({"error": str(e)}), 500
