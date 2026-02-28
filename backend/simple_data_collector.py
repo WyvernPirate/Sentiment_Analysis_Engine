@@ -12,6 +12,7 @@ from typing import List, Dict
 import time
 import random
 import logging
+from web_scraper import web_scraper
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -195,6 +196,16 @@ class SimpleDataCollector:
         news_headlines = self.collect_news_headlines()
         all_data.extend(news_headlines)
         
+        # 4. Comprehensive Web Scraping (Mmegi, The Voice, Guardian, etc.)
+        logger.info("Collecting from comprehensive web sources...")
+        web_results = web_scraper.collect_all_data(max_per_source=10)
+        
+        # Flatten web_results into all_data
+        web_post_count = 0
+        for source_name, posts in web_results.items():
+            all_data.extend(posts)
+            web_post_count += len(posts)
+        
         logger.info(f"Total collected: {len(all_data)} items")
         
         return {
@@ -204,7 +215,8 @@ class SimpleDataCollector:
             'sources': {
                 'reddit': len(reddit_posts),
                 'mock_social_media': len(mock_posts),
-                'news': len(news_headlines)
+                'news': len(news_headlines),
+                'web_scraping': web_post_count
             },
             'timestamp': datetime.now().isoformat()
         }

@@ -99,7 +99,12 @@ def detect_language_and_code_switching(text):
     total_words = len(words)
 
     if total_words == 0:
-        return "unknown", False, {}
+        return "unknown", False, {
+            'setswana_words_found': [],
+            'setswana_ratio': 0.0,
+            'total_words': 0,
+            'setswana_word_count': 0
+        }
 
     # Count Setswana indicators
     setswana_count = 0
@@ -371,7 +376,7 @@ def analyze_sentiment():
             "model_used": analysis_details['model_used'],
             "language_analysis": lang_details,
             "sentiment_analysis": analysis_details,
-            "sentiment_words": analysis_details['setswana_analysis']['words'],
+            "sentiment_words": analysis_details.get('setswana_analysis', {}).get('words', {}) or {'positive': [], 'negative': []},
             "political_context": {
                 "entities": political_entities,
                 "keywords": political_keywords
@@ -970,7 +975,7 @@ def analyze_sentiment_compat():
             "model_used": analysis_details.get('model_used', 'unknown'),
             "language_analysis": lang_details,
             "sentiment_analysis": analysis_details,
-            "sentiment_words": analysis_details.get('setswana_analysis', {}).get('words', {}),
+            "sentiment_words": analysis_details.get('setswana_analysis', {}).get('words', {}) or {'positive': [], 'negative': []},
             "political_context": {
                 "entities": political_entities,
                 "keywords": political_keywords
