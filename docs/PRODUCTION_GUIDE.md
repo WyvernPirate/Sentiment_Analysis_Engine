@@ -15,12 +15,10 @@ This is a comprehensive real-time political sentiment monitoring platform design
 ### Backend Structure
 ```
 backend/
-├── app_production.py           # Main production Flask API
-├── simple_app.py              # Simple testing API (development)
+├── app.py                     # Main Flask API
 ├── config.py                  # Configuration management
 ├── models.py                  # Database schemas
 ├── lexicon_manager.py         # Setswana lexicon management
-├── training_data_collector.py # Training data collection
 ├── model_trainer.py           # Model training pipeline
 ├── sentiment_analyzer.py      # Enhanced sentiment analysis
 ├── data_collector.py          # Social media data collection
@@ -53,22 +51,11 @@ frontend/src/
 
 ## 🚀 Quick Start
 
-### Development Mode (Simple Testing)
+### Start the Platform
 ```bash
-# Terminal 1: Start simple backend for testing
+# Terminal 1: Start backend
 cd backend
-python simple_app.py
-
-# Terminal 2: Start frontend
-cd frontend
-npm start
-```
-
-### Production Mode (Full Platform)
-```bash
-# Terminal 1: Start production backend
-cd backend
-python app_production.py
+python app.py
 
 # Terminal 2: Start frontend
 cd frontend
