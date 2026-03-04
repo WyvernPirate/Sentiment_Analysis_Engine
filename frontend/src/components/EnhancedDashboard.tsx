@@ -67,14 +67,11 @@ const EnhancedDashboard: React.FC = () => {
     setError(null);
 
     try {
-      const response = await fetch(`http://localhost:5000/api/dashboard/analytics?days=${timeRange}`);
-      const data = await response.json();
-      
-      if (response.ok) {
-        setAnalytics(data.analytics);
-      } else {
-        throw new Error(data.error || 'Failed to load analytics');
-      }
+      const response = await apiService.get('/dashboard/analytics', {
+        params: { days: timeRange },
+      });
+      const data = response.data;
+      setAnalytics(data.analytics);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analytics');
     } finally {
