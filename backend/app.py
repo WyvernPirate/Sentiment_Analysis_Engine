@@ -154,5 +154,11 @@ if __name__ == '__main__':
     print("")
     print("🌐 Frontend should connect to: http://localhost:5000")
     print("=" * 70)
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+
+    debug_env = os.getenv('FLASK_DEBUG')
+    if debug_env is not None:
+        debug_mode = debug_env.lower() == 'true'
+    else:
+        debug_mode = getattr(Config, 'DEBUG', False)
+
+    app.run(debug=debug_mode, host='0.0.0.0', port=5000)
