@@ -1,0 +1,113 @@
+/* Botswana Political Sentiment Analysis - Enhanced Styling */
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  min-height: 100vh;
+}
+
+.App {
+  text-align: center;
+}
+
+/* Responsive grid */
+@media (max-width: 768px) {
+  div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 1rem !important;
+  }
+}
+
+/* Button hover effects */
+button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+  transition: all 0.2s ease;
+}
+
+/* Example cards hover effect */
+div[style*="cursor: pointer"]:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transition: all 0.2s ease;
+}
+
+/* Sentiment color animations */
+.sentiment-positive {
+  animation: pulse-green 2s infinite;
+}
+
+.sentiment-negative {
+  animation: pulse-red 2s infinite;
+}
+
+.sentiment-neutral {
+  animation: pulse-gray 2s infinite;
+}
+
+@keyframes pulse-green {
+  0% { color: #28a745; }
+  50% { color: #34ce57; }
+  100% { color: #28a745; }
+}
+
+@keyframes pulse-red {
+  0% { color: #dc3545; }
+  50% { color: #e74c3c; }
+  100% { color: #dc3545; }
+}
+
+@keyframes pulse-gray {
+  0% { color: #6c757d; }
+  50% { color: #8e9aaf; }
+  100% { color: #6c757d; }
+}
+
+/* Loading animation */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.loading {
+  animation: spin 1s linear infinite;
+}
+
+/* Smooth transitions */
+* {
+  transition: all 0.2s ease;
+}
+
+/* Focus styles for accessibility */
+textarea:focus,
+button:focus {
+  outline: 2px solid #007bff;
+  outline-offset: 2px;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}

@@ -42,14 +42,36 @@ class SetswanaEnglishSentimentAnalyzer:
                 logger.info(f"Loading custom Setswana model from {self.model_path}")
                 model = AutoModelForSequenceClassification.from_pretrained(self.model_path)
                 tokenizer = AutoTokenizer.from_pretrained(self.model_path)
+                self.pipeline_type = 'hf'
                 return pipeline("sentiment-analysis", model=model, tokenizer=tokenizer)
             else:
                 logger.info(f"Custom model not found, using fallback: {self.fallback_model}")
+                self.pipeline_type = 'hf'
                 return pipeline("sentiment-analysis", model=self.fallback_model)
         except Exception as e:
             logger.error(f"Error loading model: {str(e)}")
             logger.info("Using default sentiment analysis pipeline")
-            return pipeline("sentiment-analysis")
+            # Try to load a lightweight baseline model (scikit-learn) if available
+            try:
+                import joblib
+                baseline_path = getattr(Config, 'BASELINE_MODEL_PATH', './models/baseline_sentiment_model.joblib')
+                if os.path.exists(baseline_path):
+                    logger.info(f"Loading baseline sklearn model from {baseline_path}")
+                    model = joblib.load(baseline_path)
+                    self.pipeline_type = 'sklearn'
+                    return model
+                else:
+                    logger.warning(f"Baseline model not found at {baseline_path}")
+            except Exception as ie:
+                logger.error(f"Error loading baseline model: {ie}")
+
+            # As a last resort, attempt HF default pipeline (may fail if transformers missing)
+            try:
+                self.pipeline_type = 'hf'
+                return pipeline("sentiment-analysis")
+            except Exception as final_e:
+                logger.error(f"Final fallback failed: {final_e}")
+                return None
     
     def detect_language_and_code_switching(self, text):
         """Detect language and code-switching in text"""
@@ -95,31 +117,73 @@ class SetswanaEnglishSentimentAnalyzer:
     def analyze_sentiment(self, text):
         """Analyze sentiment of text with political context"""
         try:
-            # Run sentiment analysis
-            result = self.sentiment_pipeline(text)
-            
-            # Extract results
-            label = result[0]['label'].lower()
-            confidence = float(result[0]['score'])
+            # Run sentiment analysis depending on pipeline type
+            label = None
+            confidence = 0.0
+
+            if getattr(self, 'pipeline_type', None) == 'sklearn':
+                # sklearn pipeline: predict returns integer labels
+                try:
+                    pred = self.sentiment_pipeline.predict([text])
+                    label_idx = int(pred[0])
+                    # Try to get probability if available
+                    if hasattr(self.sentiment_pipeline, 'predict_proba'):
+                        probs = self.sentiment_pipeline.predict_proba([text])[0]
+                        confidence = float(max(probs))
+                    else:
+                        confidence = 0.8
+
+                    # Map numeric labels to text
+                    label_mapping_idx = {0: 'label_0', 1: 'label_1', 2: 'label_2'}
+                    label = label_mapping_idx.get(label_idx, str(label_idx))
+                except Exception as e:
+                    logger.error(f"Error running sklearn pipeline: {e}")
+                    return None
+            elif getattr(self, 'pipeline_type', None) == 'hf':
+                result = self.sentiment_pipeline(text)
+                # Extract results
+                label = result[0]['label'].lower()
+                confidence = float(result[0]['score'])
+            else:
+                logger.error("No sentiment pipeline available")
+                return None
             
             # Map model outputs to consistent format
             sentiment_mapping = {
                 'positive': 'positive',
                 'negative': 'negative',
                 'neutral': 'neutral',
-                'label_2': 'positive',  # Custom model mapping
-                'label_1': 'neutral',
-                'label_0': 'negative'
+                'label_0': 'negative',  # CardiffNLP/Twitter-RoBERTa 0: Negative
+                'label_1': 'neutral',   # CardiffNLP/Twitter-RoBERTa 1: Neutral
+                'label_2': 'positive',  # CardiffNLP/Twitter-RoBERTa 2: Positive
+                'negative': 'negative',
+                'neutral': 'neutral',
+                'positive': 'positive'
             }
             
-            sentiment = sentiment_mapping.get(label, label)
+            # For some models, the label might be uppercase
+            sentiment = sentiment_mapping.get(label.lower(), label.lower())
             
-            # Detect language and code-switching
-            detected_language, code_switching = self.detect_language_and_code_switching(text)
+            # Detect language and code-switching and extract political context
+            # Only perform these when the feature toggle is enabled. For the
+            # baseline deliverable we keep code-switching/lexicon logic optional.
+            if getattr(Config, 'USE_CODE_SWITCHING', False):
+                detected_language, code_switching = self.detect_language_and_code_switching(text)
+                political_entities, political_keywords = self.extract_political_entities(text)
+            else:
+                # Default to English-only analysis for baseline
+                detected_language, code_switching = 'English', False
+                political_entities, political_keywords = [], []
             
-            # Extract political context
-            political_entities, political_keywords = self.extract_political_entities(text)
-            
+            # Determine model_used string
+            if getattr(self, 'pipeline_type', None) == 'sklearn':
+                model_used = 'baseline'
+            else:
+                try:
+                    model_used = 'custom' if 'custom' in str(self.sentiment_pipeline.model) else 'fallback'
+                except Exception:
+                    model_used = 'fallback'
+
             return {
                 'sentiment': sentiment,
                 'confidence': confidence,
@@ -127,7 +191,7 @@ class SetswanaEnglishSentimentAnalyzer:
                 'code_switching_detected': code_switching,
                 'political_entities': political_entities,
                 'political_keywords': political_keywords,
-                'model_used': 'custom' if 'custom' in str(self.sentiment_pipeline.model) else 'fallback'
+                'model_used': model_used
             }
             
         except Exception as e:
