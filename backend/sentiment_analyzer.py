@@ -115,7 +115,7 @@ class SetswanaEnglishSentimentAnalyzer:
         return found_entities, found_keywords
     
     def analyze_sentiment(self, text):
-        """Analyze sentiment of text with political and context"""
+        """Analyze sentiment of text with political context"""
         try:
             # Run sentiment analysis depending on pipeline type
             label = None
