@@ -1,6 +1,6 @@
 import { SentimentResult, TestExample, HealthStatus } from '../types/sentiment';
 
-const API_BASE_URL = 'http://localhost:5000/api';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 export const sentimentApi = {
     async analyzeText(text: string): Promise<SentimentResult> {
