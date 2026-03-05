@@ -6,6 +6,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from datetime import datetime, timedelta
 import os
+from sqlalchemy import text
 
 # Import configuration and models
 from config import Config
@@ -60,7 +61,7 @@ def create_app(config_class=Config):
         """Comprehensive health check"""
         try:
             # Check database connection
-            db.session.execute('SELECT 1')
+            db.session.execute(text('SELECT 1'))
             
             # Check model availability
             model_available = os.path.exists(Config.SENTIMENT_MODEL_PATH)
