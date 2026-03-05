@@ -66,8 +66,8 @@ copy .env.example .env  # Windows
 
 ### 3. Initialize Platform
 ```bash
-# Run setup script
-python setup.py
+# Optional: preload dashboard data
+python initialize_data.py
 
 # Train sentiment model (optional, uses fallback if skipped)
 python train_sentiment_model.py
