@@ -42,11 +42,11 @@ if __name__ == "__main__":
     success = initialize_dashboard_data()
     if success:
         print("\n🚀 Data initialization complete! You can now:")
-        print("   1. Start the backend: python simple_app.py")
+        print("   1. Start the backend: python app.py")
         print("   2. View dashboard with real data")
-        print("   3. Refresh data anytime with: POST /api/collect/web-scraping")
+        print("   3. Refresh data anytime with: POST /api/dashboard/refresh")
     else:
         print("\n⚠️  Initialization failed, but you can still:")
-        print("   1. Start the backend: python simple_app.py") 
+        print("   1. Start the backend: python app.py") 
         print("   2. Manually collect data via the API")
         sys.exit(1)
