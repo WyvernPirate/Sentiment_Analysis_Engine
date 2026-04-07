@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 interface LexiconStats {
   category_stats: Record<string, { word_count: number; recent_additions: number }>;
   metadata: {
@@ -56,7 +58,7 @@ const LexiconManager: React.FC = () => {
 
   const loadStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/lexicon/stats');
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/stats`);
       const data = await response.json();
       setStats(data);
     } catch (error) {
@@ -66,7 +68,7 @@ const LexiconManager: React.FC = () => {
 
   const loadTrainingStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/training/stats');
+      const response = await fetch(`${API_BASE_URL}/api/training/stats`);
       const data = await response.json();
       setTrainingStats(data);
     } catch (error) {
@@ -78,7 +80,7 @@ const LexiconManager: React.FC = () => {
     if (!searchQuery.trim()) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/lexicon/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
       setSearchResults(data.results || []);
     } catch (error) {
@@ -95,7 +97,7 @@ const LexiconManager: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/lexicon/add', {
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWord)
@@ -124,7 +126,7 @@ const LexiconManager: React.FC = () => {
 
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/lexicon/suggest', {
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/suggest`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(newWord)
@@ -149,7 +151,7 @@ const LexiconManager: React.FC = () => {
     setMessage('🔄 Starting quick retrain...');
     
     try {
-      const response = await fetch('http://localhost:5000/api/training/quick-retrain', {
+      const response = await fetch(`${API_BASE_URL}/api/training/quick-retrain`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -172,7 +174,7 @@ const LexiconManager: React.FC = () => {
   const exportTrainingData = async () => {
     setLoading(true);
     try {
-      const response = await fetch('http://localhost:5000/api/training/export', {
+      const response = await fetch(`${API_BASE_URL}/api/training/export`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' }
       });
