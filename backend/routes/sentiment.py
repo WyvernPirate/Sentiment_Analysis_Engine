@@ -5,6 +5,34 @@ import re
 
 sentiment_bp = Blueprint('sentiment', __name__)
 
+
+@sentiment_bp.route('/test-examples', methods=['GET'])
+def test_examples():
+    return jsonify({
+        "examples": [
+            {
+                "text": "Ke rata mmuso o, o dira sentle thata",
+                "description": "Setswana positive sentiment",
+                "expected": "positive"
+            },
+            {
+                "text": "Mmuso o o botlhoko, ga o dire sepe",
+                "description": "Setswana negative sentiment",
+                "expected": "negative"
+            },
+            {
+                "text": "The government is doing botlhoko work",
+                "description": "Code-switching sentiment",
+                "expected": "negative"
+            },
+            {
+                "text": "I love the new policy changes",
+                "description": "English positive sentiment",
+                "expected": "positive"
+            }
+        ]
+    })
+
 @sentiment_bp.route('/analyze', methods=['POST'])
 def analyze():
     try:
