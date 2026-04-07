@@ -107,6 +107,16 @@ class ApiService {
     return this.request('/api/dashboard/real-time-stats');
   }
 
+  async getAdvancedAnalytics(days: number = 7): Promise<ApiResponse<{ analytics: any; period: any }>> {
+    return this.request(`/api/dashboard/analytics?days=${days}`);
+  }
+
+  async refreshDashboardData(): Promise<ApiResponse<{ message: string; result: any }>> {
+    return this.request('/api/dashboard/refresh', {
+      method: 'POST',
+    });
+  }
+
   // Lexicon Management
   async getLexiconStats(): Promise<ApiResponse<LexiconStats>> {
     return this.request('/api/lexicon/stats');
