@@ -114,13 +114,8 @@ class SimpleDataStorage:
                     data = json.load(f)
                     self._cached_data = data
                     return data
-            
-            # If no data exists, collect some
-            print("No stored data found, collecting fresh data...")
-            result = self.collect_and_store_data(force_refresh=True)
-            if result.get('success'):
-                return self._cached_data or []
-            
+
+            # No stored data yet - return quickly and let explicit refresh endpoints collect.
             return []
             
         except Exception as e:

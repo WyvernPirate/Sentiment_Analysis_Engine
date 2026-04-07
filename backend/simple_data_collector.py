@@ -43,10 +43,12 @@ def collect_simple_data(max_per_source: int = 10) -> Dict:
     try:
         collected = web_scraper.collect_all_data(max_per_source=max_per_source)
         flattened = _flatten_collected_data(collected)
+        source_counts = {source: len(items or []) for source, items in (collected or {}).items()}
 
         return {
             "success": True,
             "data": flattened,
+            "sources": source_counts,
             "total_collected": len(flattened),
             "timestamp": datetime.utcnow().isoformat()
         }
