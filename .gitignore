@@ -1,4 +1,4 @@
-# === Python ===
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
@@ -10,19 +10,19 @@ build/
 venv/
 *.so
 
-# === Environment & Secrets ===
+# Environment & Secrets
 .env
 .env.local
 .env.*.local
 
-# === Data & Databases ===
+# Data & Databases
 *.db
 *.sqlite3
 instance/
 data/
 backend/data/
 
-# === ML Models & Checkpoints ===
+# ML Models & Checkpoints
 *.safetensors
 *.pt
 *.pth
@@ -37,7 +37,7 @@ models/
 backend/models/*.joblib
 !backend/models/.gitkeep
 
-# === Node.js ===
+# Node.js
 node_modules/
 build/
 .next/
@@ -45,7 +45,7 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# === IDE & Editor ===
+#IDE & Editor 
 .vscode/
 .idea/
 *.code-workspace
@@ -53,14 +53,14 @@ yarn-error.log*
 *.swo
 *~
 
-# === OS ===
+# OS 
 .DS_Store
 Thumbs.db
 
-# === Logs ===
+# Logs 
 logs/
 *.log
 
-# === Misc ===
+# Misc
 .vs/
 *.tmp
