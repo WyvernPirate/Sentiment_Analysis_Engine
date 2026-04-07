@@ -1,35 +1,22 @@
-# Core Flask API
-flask
-flask-cors
-flask-sqlalchemy
-flask-migrate
+# Backend Python Dependencies for Sentiment Analysis Engine
+# Core Flask Web Framework
+flask==2.3.0
+flask-cors==4.0.0
+flask-sqlalchemy==3.0.5
+flask-migrate==4.0.5
 
-# ML and NLP
-transformers
-torch
-datasets
-scikit-learn
-numpy
-pandas
+# NLP & ML - Transformer-based Sentiment Analysis
+transformers==4.30.2
+torch==2.0.1
+numpy==1.24.3
+pandas==2.0.3
 
-# Social Media APIs
-tweepy
-facebook-sdk
-requests
+# Generic Utilities
+requests==2.31.0
+python-dotenv==1.0.0
+python-dateutil==2.8.2
+pytz==2023.3
 
-# Database
-psycopg2-binary
-sqlalchemy
-
-# Background Tasks
-celery
-redis
-
-# Data Processing
-python-dotenv
-schedule
-
-# Utilities
-python-dateutil
-pytz
+# Database ORM
+sqlalchemy==2.0.19
 
