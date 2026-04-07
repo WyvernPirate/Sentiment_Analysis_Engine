@@ -13,9 +13,16 @@ export const sentimentApi = {
     },
 
     async loadTestExamples(): Promise<TestExample[]> {
-        const response = await fetch(`${API_BASE_URL}/sentiment/test-examples`);
-        const data = await response.json();
-        return data.examples;
+        try {
+            const response = await fetch(`${API_BASE_URL}/sentiment/test-examples`);
+            if (!response.ok) {
+                return [];
+            }
+            const data = await response.json();
+            return Array.isArray(data.examples) ? data.examples : [];
+        } catch {
+            return [];
+        }
     },
 
     async checkHealth(): Promise<HealthStatus> {
