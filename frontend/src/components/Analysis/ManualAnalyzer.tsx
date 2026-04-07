@@ -51,7 +51,7 @@ const ManualAnalyzer: React.FC<ManualAnalyzerProps> = ({
 
       <div style={{ marginTop: '2rem' }}>
         <h4>🧪 Try These Examples:</h4>
-        {examples.map((example, index) => (
+        {(examples || []).map((example, index) => (
           <div key={index} style={{ 
             marginBottom: '1rem', 
             padding: '0.75rem', 
