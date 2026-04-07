@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { apiService } from '../services/api';
 
 interface AdvancedAnalytics {
@@ -58,26 +58,30 @@ const EnhancedDashboard: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState(7);
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [timeRange]);
-
-  const loadAnalytics = async () => {
+  const loadAnalytics = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await apiService.get('/dashboard/analytics', {
-        params: { days: timeRange },
-      });
-      const data = response.data;
-      setAnalytics(data.analytics);
+      const response = await apiService.getAdvancedAnalytics(timeRange);
+
+      if (response.error) {
+        setError(response.error);
+        setAnalytics(null);
+        return;
+      }
+
+      setAnalytics(response.data?.analytics || null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load analytics');
     } finally {
       setLoading(false);
     }
-  };
+  }, [timeRange]);
+
+  useEffect(() => {
+    loadAnalytics();
+  }, [loadAnalytics]);
 
   const getTrendIcon = (trend: string) => {
     switch (trend) {
@@ -172,9 +176,9 @@ const EnhancedDashboard: React.FC = () => {
         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
           <button
             onClick={() => {
-              fetch('http://localhost:5000/api/collect/web-scraping', { method: 'POST' })
+              apiService.refreshDashboardData()
                 .then(() => {
-                  setTimeout(() => loadAnalytics(), 2000); // Reload after 2 seconds
+                  setTimeout(() => loadAnalytics(), 1000);
                 })
                 .catch(console.error);
             }}
