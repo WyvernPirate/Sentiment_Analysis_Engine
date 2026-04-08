@@ -1,7 +1,6 @@
 from flask import Blueprint, jsonify, request
 from services.lexicon_service import lexicon_service
 from lexicon_manager import lexicon_manager
-from training_data_collector import training_collector
 
 lexicon_bp = Blueprint('lexicon', __name__)
 
@@ -55,40 +54,6 @@ def add_word():
 
     lexicon_service.refresh_lexicon()
     return jsonify({'message': f"Word '{word}' added successfully", 'word': word, 'category': category, 'meaning': meaning})
-
-
-@lexicon_bp.route('/suggest', methods=['POST'])
-def suggest_word():
-    data = request.get_json() or {}
-    word = (data.get('word') or '').strip()
-    category = (data.get('category') or '').strip()
-    meaning = (data.get('meaning') or '').strip()
-    context_sentence = (data.get('context_sentence') or '').strip()
-
-    if not word or not category or not meaning or not context_sentence:
-        return jsonify({'error': 'word, category, meaning, and context_sentence are required'}), 400
-
-    success = training_collector.suggest_new_word(
-        word=word,
-        meaning=meaning,
-        category=category,
-        context_sentence=context_sentence,
-        sentiment=data.get('sentiment')
-    )
-
-    if not success:
-        return jsonify({'error': 'Failed to submit word suggestion'}), 500
-
-    return jsonify({'message': f"Word '{word}' suggested for review", 'word': word, 'status': 'pending_review'})
-
-
-@lexicon_bp.route('/export', methods=['GET'])
-def export_lexicon():
-    filename = f"data/training_data/lexicon_export_{request.args.get('ts', '') or 'latest'}.csv"
-    success = lexicon_manager.export_to_csv(filename)
-    if not success:
-        return jsonify({'error': 'Failed to export lexicon'}), 500
-    return jsonify({'message': 'Lexicon exported', 'filename': filename})
 
 @lexicon_bp.route('/health', methods=['GET'])
 def health():
