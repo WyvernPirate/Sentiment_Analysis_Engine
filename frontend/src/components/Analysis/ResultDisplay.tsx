@@ -47,24 +47,92 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, loading }) => {
             <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: getSentimentColor(result.sentiment) }}>
               {result.sentiment.toUpperCase()} ({Math.round(result.confidence * 100)}%)
             </div>
-            <div>🌍 Language: <strong>{result.detected_language}</strong></div>
-            {result.code_switching_detected && <div style={{ color: '#e67e22' }}>Code-switching detected!</div>}
+            <div>🤖 Model: <strong>{result.model_used}</strong></div>
+            <div>🔢 Words: <strong>{result.word_count}</strong></div>
           </div>
 
-          {result.language_analysis?.setswana_words_found.length > 0 && (
+          {result.matched_political_words.length > 0 && (
             <div style={{ marginBottom: '1rem' }}>
-              <strong>Setswana Words:</strong> {result.language_analysis.setswana_words_found.join(', ')}
+              <strong>Matched Political Words:</strong>
+              <div style={{ marginTop: '0.5rem' }}>
+                {result.matched_political_words.map((word, i) => (
+                  <span
+                    key={`${word.term}-${i}`}
+                    style={{
+                      margin: '0 0.25rem 0.25rem 0',
+                      display: 'inline-block',
+                      padding: '0.2rem 0.5rem',
+                      background: '#fff3cd',
+                      borderRadius: '12px',
+                      fontSize: '0.8rem'
+                    }}
+                    title={word.meaning}
+                  >
+                    {word.term}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
-          {result.political_context && (result.political_context.entities.length > 0 || result.political_context.keywords.length > 0) && (
+          {(result.sentiment_words.positive.length > 0 || result.sentiment_words.negative.length > 0) && (
+            <div style={{ marginBottom: '1rem' }}>
+              <strong>Sentiment Trigger Words:</strong>
+              <div style={{ marginTop: '0.5rem' }}>
+                {result.sentiment_words.positive.map((word) => (
+                  <span
+                    key={`pos-${word}`}
+                    style={{
+                      margin: '0 0.25rem 0.25rem 0',
+                      display: 'inline-block',
+                      padding: '0.2rem 0.5rem',
+                      background: '#d4edda',
+                      borderRadius: '12px',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    + {word}
+                  </span>
+                ))}
+                {result.sentiment_words.negative.map((word) => (
+                  <span
+                    key={`neg-${word}`}
+                    style={{
+                      margin: '0 0.25rem 0.25rem 0',
+                      display: 'inline-block',
+                      padding: '0.2rem 0.5rem',
+                      background: '#f8d7da',
+                      borderRadius: '12px',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    - {word}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {result.political_context.entities.length > 0 && (
             <div>
-              <strong>Political Context:</strong>
-              {result.political_context.entities.map((e, i) => (
-                <span key={i} style={{ margin: '0 0.25rem', padding: '0.2rem 0.5rem', background: '#fff3cd', borderRadius: '12px', fontSize: '0.8rem' }}>
-                  {e.entity}
-                </span>
-              ))}
+              <strong>Political Entities:</strong>
+              <div style={{ marginTop: '0.5rem' }}>
+                {result.political_context.entities.map((entity, i) => (
+                  <span
+                    key={`${entity.entity}-${i}`}
+                    style={{
+                      margin: '0 0.25rem 0.25rem 0',
+                      display: 'inline-block',
+                      padding: '0.2rem 0.5rem',
+                      background: '#e2e3e5',
+                      borderRadius: '12px',
+                      fontSize: '0.8rem'
+                    }}
+                  >
+                    {entity.entity}
+                  </span>
+                ))}
+              </div>
             </div>
           )}
         </>
