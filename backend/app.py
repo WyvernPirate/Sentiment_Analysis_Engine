@@ -7,6 +7,7 @@ from config import Config
 # Import route blueprints (only essentials)
 from routes.sentiment import sentiment_bp
 from routes.lexicon import lexicon_bp
+from routes.entities import entities_bp
 
 
 def create_app(config_class=Config):
@@ -20,6 +21,7 @@ def create_app(config_class=Config):
     # Register only essential blueprints
     app.register_blueprint(sentiment_bp, url_prefix='/api/sentiment')
     app.register_blueprint(lexicon_bp, url_prefix='/api/lexicon')
+    app.register_blueprint(entities_bp, url_prefix='/api/entities')
     
     # Simple root endpoint
     @app.route('/')
@@ -30,7 +32,8 @@ def create_app(config_class=Config):
             "status": "running",
             "endpoints": {
                 "analyze": "POST /api/sentiment/analyze",
-                "lexicon": "GET/POST /api/lexicon/*"
+                "lexicon": "GET/POST /api/lexicon/*",
+                "entities": "GET/POST/DELETE /api/entities/*"
             }
         })
     
@@ -54,15 +57,18 @@ def create_app(config_class=Config):
 app = create_app()
 
 if __name__ == '__main__':
-    print("🚀 Sentiment Analysis Engine")
+    print("Sentiment Analysis Engine")
     print("=" * 50)
-    print("📊 Endpoints:")
+    print("Endpoints:")
     print("   POST /api/sentiment/analyze - Analyze text")
     print("   GET  /api/sentiment/test-examples - Test examples")
     print("   POST /api/lexicon/add - Add word to lexicon")
     print("   GET  /api/lexicon/stats - Lexicon statistics")
     print("   GET  /api/lexicon/search - Search lexicon")
     print("   GET  /api/lexicon/health - Health check")
+    print("   GET  /api/entities/ - List political entities")
+    print("   POST /api/entities/add - Add political entity")
+    print("   DELETE /api/entities/<id> - Delete political entity")
     print("=" * 50)
     print("Starting on http://localhost:5000")
     print("CORS enabled for http://localhost:3000")
