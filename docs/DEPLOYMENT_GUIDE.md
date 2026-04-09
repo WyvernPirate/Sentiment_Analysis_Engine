@@ -24,6 +24,7 @@ Backend env (example):
 ```bash
 SECRET_KEY=replace-this
 DATABASE_URL=sqlite:///botswana_sentiment.db
+POLITICAL_ENTITY_DB_PATH=data/political_entities.db
 FLASK_ENV=production
 ```
 
@@ -34,8 +35,10 @@ REACT_APP_API_URL=https://your-backend-host
 
 ## Operational checks
 - `GET /api/health` should return `status: healthy`
-- Verify key frontend endpoints listed in [DEVELOPMENT_GUIDE.md](DEVELOPMENT_GUIDE.md)
+- `GET /api/lexicon/health` should return `status: healthy`
+- `GET /api/entities/health` should return `status: healthy`
+- `POST /api/sentiment/analyze` should return sentiment payload and not error
 
 ## Notes
-- This repository no longer uses `app_production.py`.
+- `data/political_entities.db` is auto-created on first backend start.
 - Use `app.py` as the single backend entrypoint.
