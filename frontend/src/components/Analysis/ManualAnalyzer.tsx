@@ -20,7 +20,7 @@ const ManualAnalyzer: React.FC<ManualAnalyzerProps> = ({
         <textarea
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Enter text in English, Setswana, or mixed (code-switching)..."
+          placeholder="Enter English text for sentiment and political-word matching..."
           style={{ 
             width: '100%', 
             height: '100px',

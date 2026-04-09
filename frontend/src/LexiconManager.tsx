@@ -1,4 +1,6 @@
 import React, { useEffect, useState } from 'react';
+import { sentimentApi } from './services/sentimentApi';
+import { PoliticalEntity } from './types/sentiment';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
@@ -27,6 +29,13 @@ interface LexiconForm {
   context_sentence: string;
 }
 
+interface EntityForm {
+  entity: string;
+  type: string;
+  full_name: string;
+  description: string;
+}
+
 const LexiconManager: React.FC = () => {
   const [stats, setStats] = useState<LexiconStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -39,9 +48,18 @@ const LexiconManager: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [entities, setEntities] = useState<PoliticalEntity[]>([]);
+  const [entityLoading, setEntityLoading] = useState(false);
+  const [entityForm, setEntityForm] = useState<EntityForm>({
+    entity: '',
+    type: 'party',
+    full_name: '',
+    description: ''
+  });
 
   useEffect(() => {
     loadStats();
+    loadEntities();
   }, []);
 
   const loadStats = async () => {
@@ -99,6 +117,47 @@ const LexiconManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const loadEntities = async () => {
+    const data = await sentimentApi.listPoliticalEntities();
+    setEntities(data);
+  };
+
+  const addEntity = async () => {
+    if (!entityForm.entity.trim() || !entityForm.type.trim()) {
+      setMessage('Entity name and type are required.');
+      return;
+    }
+
+    setEntityLoading(true);
+    const result = await sentimentApi.addPoliticalEntity({
+      entity: entityForm.entity,
+      type: entityForm.type,
+      full_name: entityForm.full_name,
+      description: entityForm.description,
+    });
+
+    if (result.ok) {
+      setMessage(`Added political entity "${entityForm.entity}".`);
+      setEntityForm({ entity: '', type: 'party', full_name: '', description: '' });
+      await loadEntities();
+    } else {
+      setMessage(result.message);
+    }
+
+    setEntityLoading(false);
+  };
+
+  const removeEntity = async (id: number) => {
+    const ok = await sentimentApi.deletePoliticalEntity(id);
+    if (!ok) {
+      setMessage('Failed to delete entity.');
+      return;
+    }
+
+    setMessage('Entity deleted.');
+    await loadEntities();
   };
 
   return (
@@ -199,6 +258,74 @@ const LexiconManager: React.FC = () => {
             <strong>{info.word_count}</strong>
           </div>
         ))}
+      </div>
+
+      <div className="section-heading" style={{ marginTop: '2rem' }}>
+        <div>
+          <p className="eyebrow">Political entities</p>
+          <h2>Database-backed entity manager</h2>
+        </div>
+        <p className="section-note">Entities used in analysis are now loaded from SQLite and can be managed from UI.</p>
+      </div>
+
+      <div className="lexicon-grid">
+        <div className="subpanel">
+          <h3>Add entity</h3>
+          <div className="stack">
+            <input
+              type="text"
+              value={entityForm.entity}
+              onChange={(e) => setEntityForm({ ...entityForm, entity: e.target.value })}
+              placeholder="Entity label (e.g., BDP, Masisi)"
+            />
+            <select
+              value={entityForm.type}
+              onChange={(e) => setEntityForm({ ...entityForm, type: e.target.value })}
+            >
+              <option value="party">Party</option>
+              <option value="leader">Leader</option>
+              <option value="location">Location</option>
+              <option value="institution">Institution</option>
+              <option value="other">Other</option>
+            </select>
+            <input
+              type="text"
+              value={entityForm.full_name}
+              onChange={(e) => setEntityForm({ ...entityForm, full_name: e.target.value })}
+              placeholder="Full name (optional)"
+            />
+            <textarea
+              value={entityForm.description}
+              onChange={(e) => setEntityForm({ ...entityForm, description: e.target.value })}
+              placeholder="Description (optional)"
+              rows={3}
+            />
+            <button type="button" onClick={addEntity} disabled={entityLoading}>
+              {entityLoading ? 'Saving...' : 'Add entity'}
+            </button>
+          </div>
+        </div>
+
+        <div className="subpanel">
+          <h3>Current entities ({entities.length})</h3>
+          <div className="result-list">
+            {entities.length === 0 ? (
+              <p className="muted">No entities found.</p>
+            ) : (
+              entities.map((entity) => (
+                <div key={entity.id} className="result-row">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+                    <strong>{entity.entity}</strong>
+                    <button type="button" onClick={() => removeEntity(entity.id)}>Delete</button>
+                  </div>
+                  <span>{entity.type}</span>
+                  {entity.full_name && <p>{entity.full_name}</p>}
+                  {entity.description && <p>{entity.description}</p>}
+                </div>
+              ))
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
