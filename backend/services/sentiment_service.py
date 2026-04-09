@@ -15,29 +15,6 @@ class SentimentService:
             'bad', 'terrible', 'awful', 'hate', 'dislike', 'sad', 'angry',
             'weak', 'worse', 'failed', 'failure', 'corrupt', 'negative'
         }
-        
-        # Hardcoded Botswana political entities (parties, leaders, locations)
-        # These are matched post-preprocessing for UI display in Political Entities section
-        self.political_entities = {
-            'parties': {
-                'BDP': 'Botswana Democratic Party',
-                'UDC': 'Umbrella for Democratic Change', 
-                'BCP': 'Botswana Congress Party',
-                'AP': 'Alliance for Progressives'
-            },
-            'leaders': {
-                'Masisi': 'Mokgweetsi Masisi',
-                'Boko': 'Duma Boko',
-                'Saleshando': 'Dumelang Saleshando',
-                'Khama': 'Ian Khama'
-            },
-            'locations': {
-                'Gaborone': 'Capital city',
-                'Francistown': 'Second largest city',
-                'Maun': 'Tourism hub',
-                'Serowe': 'Traditional capital'
-            }
-        }
 
     @property
     def pipeline(self):
@@ -119,23 +96,6 @@ class SentimentService:
                 })
 
         return matches
-
-    def extract_political_entities(self, text):
-        text_lower = text.lower()
-        entities = []
-
-        # Check for party matches
-        for party, full in self.political_entities['parties'].items():
-            if party.lower() in text_lower or full.lower() in text_lower:
-                entities.append({'entity': party, 'type': 'party', 'full_name': full})
-        
-        # Check for leader matches
-        for leader, full in self.political_entities['leaders'].items():
-            if leader.lower() in text_lower or full.lower() in text_lower:
-                entities.append({'entity': leader, 'type': 'leader', 'full_name': full})
-
-        return entities
-
 
 # Singleton instance - import and use as `sentiment_service.method_name()`
 sentiment_service = SentimentService()
