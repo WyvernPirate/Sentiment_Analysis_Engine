@@ -35,6 +35,7 @@ class PoliticalEntityService:
                 '''
             )
 
+# Seed with some default entities if table is empty (for testing)
     def _seed_defaults_if_empty(self):
         with self._get_conn() as conn:
             row = conn.execute('SELECT COUNT(*) AS count FROM political_entities').fetchone()
@@ -75,6 +76,7 @@ class PoliticalEntityService:
                     ),
                 )
 
+# Public methods for API routes and internal use
     def list_entities(self, entity_type: Optional[str] = None) -> List[Dict]:
         query = 'SELECT id, entity, type, full_name, description, created_at FROM political_entities'
         params = []
@@ -89,6 +91,7 @@ class PoliticalEntityService:
             rows = conn.execute(query, params).fetchall()
             return [dict(row) for row in rows]
 
+# Adds a new political entity, returns dict with 'ok' status and 'id' or 'error' message
     def add_entity(self, entity: str, entity_type: str, full_name: str = '', description: str = '') -> Dict:
         clean_entity = (entity or '').strip()
         clean_type = (entity_type or '').strip().lower()
@@ -118,11 +121,13 @@ class PoliticalEntityService:
         except Exception as exc:
             return {'ok': False, 'error': str(exc)}
 
+    # Deletes an entity by ID, returns True if deleted, False if not found
     def delete_entity(self, entity_id: int) -> bool:
         with self._get_conn() as conn:
             cursor = conn.execute('DELETE FROM political_entities WHERE id = ?', (entity_id,))
             return cursor.rowcount > 0
 
+    # Extracts political entities from text by matching against database entries, returns list of matches with metadata
     def extract_entities(self, text: str) -> List[Dict]:
         normalized_text = (text or '').lower()
         entities = self.list_entities()
