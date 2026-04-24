@@ -1,26 +1,28 @@
-# Frontend (React)
+# Frontend (React + TypeScript)
 
 ## Overview
-This is a React app that allows users to input text and receive real-time sentiment analysis results from the backend.
-
-## Features
-- Simple text input form
-- Displays sentiment, confidence, and detected language
-- Connects to Flask backend via HTTP POST
+This UI provides:
+- text sentiment analysis
+- lexicon management
+- political entity management (database-backed)
 
 ## Setup
-1. Install dependencies:
-   ```
-   npm install
-   ```
-2. Start the development server:
-   ```
-   npm start
-   ```
-3. The app runs at [http://localhost:3000](http://localhost:3000)
+```bash
+cd frontend
+npm install
+npm start
+```
 
-## Usage
-- Enter text in the input box and click "Analyze".
-- The result will show sentiment, confidence, and language.
+Default URL: `http://localhost:3000`
 
----
+## Backend URL
+Optional `.env`:
+```bash
+REACT_APP_API_URL=http://localhost:5000/api
+```
+
+## Current UI Sections
+- Analyzer: submit text and view sentiment output.
+- Results: sentiment, confidence, model, matched words, trigger words, entities.
+- Lexicon manager: search and add words.
+- Entity manager: add and delete political entities persisted in SQLite.

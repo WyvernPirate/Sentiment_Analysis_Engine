@@ -1,4 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import { sentimentApi } from './services/sentimentApi';
+import { PoliticalEntity } from './types/sentiment';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 interface LexiconStats {
   category_stats: Record<string, { word_count: number; recent_additions: number }>;
@@ -10,426 +14,317 @@ interface LexiconStats {
   total_words: number;
 }
 
-interface WordSuggestion {
+interface LexiconEntry {
+  word: string;
+  category: string;
+  details: {
+    meaning: string;
+  };
+}
+
+interface LexiconForm {
   word: string;
   meaning: string;
   category: string;
   context_sentence: string;
-  sentiment?: string;
 }
 
-interface TrainingStats {
-  feedback_stats: {
-    total_feedback: number;
-    agreement_rate: number;
-    corrections_needed: number;
-    new_word_suggestions: number;
-    recent_activity: number;
-  };
-  performance_analysis: {
-    overall_accuracy: number;
-    sentiment_breakdown: Record<string, number>;
-    common_errors: Array<{ pattern: string; count: number }>;
-    improvement_suggestions: string[];
-  };
+interface EntityForm {
+  entity: string;
+  type: string;
+  full_name: string;
+  description: string;
 }
 
 const LexiconManager: React.FC = () => {
   const [stats, setStats] = useState<LexiconStats | null>(null);
-  const [trainingStats, setTrainingStats] = useState<TrainingStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [newWord, setNewWord] = useState<WordSuggestion>({
+  const [searchResults, setSearchResults] = useState<LexiconEntry[]>([]);
+  const [entry, setEntry] = useState<LexiconForm>({
     word: '',
     meaning: '',
-    category: 'positive',
-    context_sentence: '',
-    sentiment: 'positive'
+    category: 'political',
+    context_sentence: ''
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
+  const [entities, setEntities] = useState<PoliticalEntity[]>([]);
+  const [entityLoading, setEntityLoading] = useState(false);
+  const [entityForm, setEntityForm] = useState<EntityForm>({
+    entity: '',
+    type: 'party',
+    full_name: '',
+    description: ''
+  });
 
   useEffect(() => {
     loadStats();
-    loadTrainingStats();
+    loadEntities();
   }, []);
 
   const loadStats = async () => {
     try {
-      const response = await fetch('http://localhost:5000/api/lexicon/stats');
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/stats`);
       const data = await response.json();
       setStats(data);
-    } catch (error) {
-      console.error('Failed to load lexicon stats:', error);
-    }
-  };
-
-  const loadTrainingStats = async () => {
-    try {
-      const response = await fetch('http://localhost:5000/api/training/stats');
-      const data = await response.json();
-      setTrainingStats(data);
-    } catch (error) {
-      console.error('Failed to load training stats:', error);
+    } catch {
+      setStats(null);
     }
   };
 
   const searchLexicon = async () => {
-    if (!searchQuery.trim()) return;
-    
+    if (!searchQuery.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:5000/api/lexicon/search?q=${encodeURIComponent(searchQuery)}`);
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/search?q=${encodeURIComponent(searchQuery)}`);
       const data = await response.json();
-      setSearchResults(data.results || []);
-    } catch (error) {
-      console.error('Search failed:', error);
+      setSearchResults(Array.isArray(data.results) ? data.results : []);
+    } catch {
       setSearchResults([]);
     }
   };
 
   const addWord = async () => {
-    if (!newWord.word || !newWord.meaning || !newWord.context_sentence) {
-      setMessage('Please fill in all required fields');
+    if (!entry.word.trim() || !entry.meaning.trim() || !entry.context_sentence.trim()) {
+      setMessage('Word, meaning, and context are required.');
       return;
     }
 
     setLoading(true);
+    setMessage('');
+
     try {
-      const response = await fetch('http://localhost:5000/api/lexicon/add', {
+      const response = await fetch(`${API_BASE_URL}/api/lexicon/add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newWord)
+        body: JSON.stringify(entry)
       });
 
       const data = await response.json();
-      
+
       if (response.ok) {
-        setMessage(`✅ Word "${newWord.word}" added successfully!`);
-        setNewWord({ word: '', meaning: '', category: 'positive', context_sentence: '', sentiment: 'positive' });
-        loadStats(); // Refresh stats
+        setMessage(`Added "${entry.word}" to the lexicon.`);
+        setEntry({ word: '', meaning: '', category: 'political', context_sentence: '' });
+        await loadStats();
       } else {
-        setMessage(`❌ Error: ${data.error}`);
+        setMessage(data.error || 'Failed to add word.');
       }
-    } catch (error) {
-      setMessage(`❌ Failed to add word: ${error}`);
+    } catch {
+      setMessage('Failed to add word.');
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
-  const suggestWord = async () => {
-    if (!newWord.word || !newWord.meaning || !newWord.context_sentence) {
-      setMessage('Please fill in all required fields');
+  const loadEntities = async () => {
+    const data = await sentimentApi.listPoliticalEntities();
+    setEntities(data);
+  };
+
+  const addEntity = async () => {
+    if (!entityForm.entity.trim() || !entityForm.type.trim()) {
+      setMessage('Entity name and type are required.');
       return;
     }
 
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/lexicon/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newWord)
-      });
+    setEntityLoading(true);
+    const result = await sentimentApi.addPoliticalEntity({
+      entity: entityForm.entity,
+      type: entityForm.type,
+      full_name: entityForm.full_name,
+      description: entityForm.description,
+    });
 
-      const data = await response.json();
-      
-      if (response.ok) {
-        setMessage(`✅ Word "${newWord.word}" suggested for review!`);
-        setNewWord({ word: '', meaning: '', category: 'positive', context_sentence: '', sentiment: 'positive' });
-      } else {
-        setMessage(`❌ Error: ${data.error}`);
-      }
-    } catch (error) {
-      setMessage(`❌ Failed to suggest word: ${error}`);
+    if (result.ok) {
+      setMessage(`Added political entity "${entityForm.entity}".`);
+      setEntityForm({ entity: '', type: 'party', full_name: '', description: '' });
+      await loadEntities();
+    } else {
+      setMessage(result.message);
     }
-    setLoading(false);
+
+    setEntityLoading(false);
   };
 
-  const quickRetrain = async () => {
-    setLoading(true);
-    setMessage('🔄 Starting quick retrain...');
-    
-    try {
-      const response = await fetch('http://localhost:5000/api/training/quick-retrain', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setMessage(`✅ Quick retrain completed! ${data.training_examples} examples, ${data.lexicon_suggestions} new suggestions`);
-        loadStats();
-        loadTrainingStats();
-      } else {
-        setMessage(`❌ Retrain failed: ${data.error}`);
-      }
-    } catch (error) {
-      setMessage(`❌ Retrain failed: ${error}`);
+  const removeEntity = async (id: number) => {
+    const ok = await sentimentApi.deletePoliticalEntity(id);
+    if (!ok) {
+      setMessage('Failed to delete entity.');
+      return;
     }
-    setLoading(false);
-  };
 
-  const exportTrainingData = async () => {
-    setLoading(true);
-    try {
-      const response = await fetch('http://localhost:5000/api/training/export', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' }
-      });
-
-      const data = await response.json();
-      
-      if (response.ok) {
-        setMessage(`✅ Training data exported to: ${data.filename}`);
-      } else {
-        setMessage(`❌ Export failed: ${data.error}`);
-      }
-    } catch (error) {
-      setMessage(`❌ Export failed: ${error}`);
-    }
-    setLoading(false);
+    setMessage('Entity deleted.');
+    await loadEntities();
   };
 
   return (
-    <div style={{ maxWidth: '1200px', margin: '2rem auto', padding: '0 1rem', fontFamily: 'Arial, sans-serif' }}>
-      <h1 style={{ textAlign: 'center', color: '#2c3e50' }}>🔧 Lexicon & Training Manager</h1>
-      
-      {message && (
-        <div style={{ 
-          padding: '1rem', 
-          marginBottom: '1rem', 
-          background: message.includes('❌') ? '#f8d7da' : '#d4edda',
-          border: `1px solid ${message.includes('❌') ? '#f5c6cb' : '#c3e6cb'}`,
-          borderRadius: '4px',
-          color: message.includes('❌') ? '#721c24' : '#155724'
-        }}>
-          {message}
+    <div className="lexicon-shell">
+      <div className="section-heading">
+        <div>
+          <p className="eyebrow">Lexicon manager</p>
+          <h2>Political word pool</h2>
         </div>
-      )}
+        <p className="section-note">Add words once and they are available to the next sentiment request immediately.</p>
+      </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2rem' }}>
-        {/* Lexicon Stats */}
-        <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px' }}>
-          <h3>📊 Lexicon Statistics</h3>
-          {stats ? (
-            <>
-              <div style={{ marginBottom: '1rem' }}>
-                <strong>Total Words: {stats.total_words}</strong>
-              </div>
-              <div style={{ marginBottom: '1rem' }}>
-                <strong>Last Updated:</strong> {new Date(stats.metadata.last_updated).toLocaleString()}
-              </div>
-              <div>
-                <strong>Categories:</strong>
-                {Object.entries(stats.category_stats).map(([category, data]) => (
-                  <div key={category} style={{ marginLeft: '1rem', fontSize: '0.9rem' }}>
-                    {category}: {data.word_count} words
-                    {data.recent_additions > 0 && (
-                      <span style={{ color: '#28a745' }}> (+{data.recent_additions} recent)</span>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </>
-          ) : (
-            <div>Loading...</div>
-          )}
+      {message && <div className="status-banner">{message}</div>}
+
+      <div className="stats-grid">
+        <div className="stat-card">
+          <span className="stat-label">Total words</span>
+          <strong className="stat-value">{stats?.total_words ?? 0}</strong>
         </div>
-
-        {/* Training Stats */}
-        <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px' }}>
-          <h3>🎓 Training Statistics</h3>
-          {trainingStats ? (
-            <>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <strong>Total Feedback:</strong> {trainingStats.feedback_stats.total_feedback}
-              </div>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <strong>Agreement Rate:</strong> {Math.round(trainingStats.feedback_stats.agreement_rate * 100)}%
-              </div>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <strong>Model Accuracy:</strong> {Math.round(trainingStats.performance_analysis.overall_accuracy * 100)}%
-              </div>
-              <div style={{ marginBottom: '0.5rem' }}>
-                <strong>Corrections Needed:</strong> {trainingStats.feedback_stats.corrections_needed}
-              </div>
-              <div>
-                <strong>Word Suggestions:</strong> {trainingStats.feedback_stats.new_word_suggestions}
-              </div>
-            </>
-          ) : (
-            <div>Loading...</div>
-          )}
+        <div className="stat-card">
+          <span className="stat-label">Last updated</span>
+          <strong className="stat-value">
+            {stats?.metadata.last_updated ? new Date(stats.metadata.last_updated).toLocaleString() : 'Unknown'}
+          </strong>
         </div>
       </div>
 
-      {/* Search Lexicon */}
-      <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-        <h3>🔍 Search Lexicon</h3>
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search for words or meanings..."
-            style={{ flex: 1, padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-            onKeyPress={(e) => e.key === 'Enter' && searchLexicon()}
-          />
-          <button 
-            onClick={searchLexicon}
-            style={{ padding: '0.5rem 1rem', background: '#007bff', color: 'white', border: 'none', borderRadius: '4px' }}
-          >
-            Search
-          </button>
-        </div>
-        
-        {searchResults.length > 0 && (
-          <div>
-            <h4>Results ({searchResults.length}):</h4>
-            {searchResults.map((result, index) => (
-              <div key={index} style={{ 
-                padding: '0.75rem', 
-                margin: '0.5rem 0', 
-                background: 'white', 
-                border: '1px solid #dee2e6', 
-                borderRadius: '4px' 
-              }}>
-                <strong>{result.word}</strong> ({result.category})
-                <div style={{ fontSize: '0.9rem', color: '#6c757d' }}>
-                  {result.details.meaning}
-                </div>
-              </div>
-            ))}
+      <div className="lexicon-grid">
+        <div className="subpanel">
+          <h3>Search</h3>
+          <div className="row">
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search words or meanings"
+            />
+            <button type="button" onClick={searchLexicon}>Search</button>
           </div>
-        )}
-      </div>
 
-      {/* Add/Suggest Words */}
-      <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px', marginBottom: '2rem' }}>
-        <h3>➕ Add New Word</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-          <input
-            type="text"
-            value={newWord.word}
-            onChange={(e) => setNewWord({...newWord, word: e.target.value})}
-            placeholder="Setswana word"
-            style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
-          <input
-            type="text"
-            value={newWord.meaning}
-            onChange={(e) => setNewWord({...newWord, meaning: e.target.value})}
-            placeholder="English meaning"
-            style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-          />
+          <div className="result-list">
+            {searchResults.length === 0 ? (
+              <p className="muted">No results yet.</p>
+            ) : (
+              searchResults.map((item, index) => (
+                <div key={`${item.word}-${index}`} className="result-row">
+                  <strong>{item.word}</strong>
+                  <span>{item.category}</span>
+                  <p>{item.details.meaning}</p>
+                </div>
+              ))
+            )}
+          </div>
         </div>
-        
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
-          <select
-            value={newWord.category}
-            onChange={(e) => setNewWord({...newWord, category: e.target.value})}
-            style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-          >
-            <option value="positive">Positive</option>
-            <option value="negative">Negative</option>
-            <option value="political">Political</option>
-            <option value="common_words">Common Words</option>
-            <option value="botswana_specific">Botswana Specific</option>
-          </select>
-          <select
-            value={newWord.sentiment || ''}
-            onChange={(e) => setNewWord({...newWord, sentiment: e.target.value})}
-            style={{ padding: '0.5rem', border: '1px solid #ccc', borderRadius: '4px' }}
-          >
-            <option value="positive">Positive Sentiment</option>
-            <option value="negative">Negative Sentiment</option>
-            <option value="neutral">Neutral Sentiment</option>
-          </select>
-        </div>
-        
-        <textarea
-          value={newWord.context_sentence}
-          onChange={(e) => setNewWord({...newWord, context_sentence: e.target.value})}
-          placeholder="Example sentence using this word..."
-          style={{ 
-            width: '100%', 
-            height: '80px', 
-            padding: '0.5rem', 
-            border: '1px solid #ccc', 
-            borderRadius: '4px',
-            marginBottom: '1rem'
-          }}
-        />
-        
-        <div style={{ display: 'flex', gap: '1rem' }}>
-          <button 
-            onClick={addWord}
-            disabled={loading}
-            style={{ 
-              padding: '0.75rem 1.5rem', 
-              background: '#28a745', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Adding...' : 'Add Directly'}
-          </button>
-          <button 
-            onClick={suggestWord}
-            disabled={loading}
-            style={{ 
-              padding: '0.75rem 1.5rem', 
-              background: '#ffc107', 
-              color: 'black', 
-              border: 'none', 
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Suggesting...' : 'Suggest for Review'}
-          </button>
+
+        <div className="subpanel">
+          <h3>Add word</h3>
+          <div className="stack">
+            <input
+              type="text"
+              value={entry.word}
+              onChange={(e) => setEntry({ ...entry, word: e.target.value })}
+              placeholder="Word"
+            />
+            <input
+              type="text"
+              value={entry.meaning}
+              onChange={(e) => setEntry({ ...entry, meaning: e.target.value })}
+              placeholder="Meaning"
+            />
+            <select
+              value={entry.category}
+              onChange={(e) => setEntry({ ...entry, category: e.target.value })}
+            >
+              <option value="political">Political</option>
+              <option value="positive">Positive</option>
+              <option value="negative">Negative</option>
+              <option value="common_words">Common words</option>
+              <option value="botswana_specific">Botswana specific</option>
+            </select>
+            <textarea
+              value={entry.context_sentence}
+              onChange={(e) => setEntry({ ...entry, context_sentence: e.target.value })}
+              placeholder="Example sentence"
+              rows={4}
+            />
+            <button type="button" onClick={addWord} disabled={loading}>
+              {loading ? 'Saving...' : 'Add to lexicon'}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Training Actions */}
-      <div style={{ background: '#f8f9fa', padding: '1.5rem', borderRadius: '8px' }}>
-        <h3>🤖 Training Actions</h3>
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-          <button 
-            onClick={quickRetrain}
-            disabled={loading}
-            style={{ 
-              padding: '0.75rem 1.5rem', 
-              background: '#007bff', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Retraining...' : 'Quick Retrain'}
-          </button>
-          <button 
-            onClick={exportTrainingData}
-            disabled={loading}
-            style={{ 
-              padding: '0.75rem 1.5rem', 
-              background: '#6c757d', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px',
-              cursor: loading ? 'not-allowed' : 'pointer'
-            }}
-          >
-            {loading ? 'Exporting...' : 'Export Training Data'}
-          </button>
+      <div className="category-grid">
+        {Object.entries(stats?.category_stats ?? {}).map(([category, info]) => (
+          <div key={category} className="category-card">
+            <span>{category}</span>
+            <strong>{info.word_count}</strong>
+          </div>
+        ))}
+      </div>
+
+      <div className="section-heading" style={{ marginTop: '2rem' }}>
+        <div>
+          <p className="eyebrow">Political entities</p>
+          <h2>Database-backed entity manager</h2>
         </div>
-        
-        <div style={{ marginTop: '1rem', fontSize: '0.9rem', color: '#6c757d' }}>
-          <strong>Quick Retrain:</strong> Updates lexicon and prepares training data with user feedback<br/>
-          <strong>Export Training Data:</strong> Creates CSV file with all training examples for external use
+        <p className="section-note">Entities used in analysis are now loaded from SQLite and can be managed from UI.</p>
+      </div>
+
+      <div className="lexicon-grid">
+        <div className="subpanel">
+          <h3>Add entity</h3>
+          <div className="stack">
+            <input
+              type="text"
+              value={entityForm.entity}
+              onChange={(e) => setEntityForm({ ...entityForm, entity: e.target.value })}
+              placeholder="Entity label (e.g., BDP, Masisi)"
+            />
+            <select
+              value={entityForm.type}
+              onChange={(e) => setEntityForm({ ...entityForm, type: e.target.value })}
+            >
+              <option value="party">Party</option>
+              <option value="leader">Leader</option>
+              <option value="location">Location</option>
+              <option value="institution">Institution</option>
+              <option value="other">Other</option>
+            </select>
+            <input
+              type="text"
+              value={entityForm.full_name}
+              onChange={(e) => setEntityForm({ ...entityForm, full_name: e.target.value })}
+              placeholder="Full name (optional)"
+            />
+            <textarea
+              value={entityForm.description}
+              onChange={(e) => setEntityForm({ ...entityForm, description: e.target.value })}
+              placeholder="Description (optional)"
+              rows={3}
+            />
+            <button type="button" onClick={addEntity} disabled={entityLoading}>
+              {entityLoading ? 'Saving...' : 'Add entity'}
+            </button>
+          </div>
+        </div>
+
+        <div className="subpanel">
+          <h3>Current entities ({entities.length})</h3>
+          <div className="result-list">
+            {entities.length === 0 ? (
+              <p className="muted">No entities found.</p>
+            ) : (
+              entities.map((entity) => (
+                <div key={entity.id} className="result-row">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
+                    <strong>{entity.entity}</strong>
+                    <button type="button" onClick={() => removeEntity(entity.id)}>Delete</button>
+                  </div>
+                  <span>{entity.type}</span>
+                  {entity.full_name && <p>{entity.full_name}</p>}
+                  {entity.description && <p>{entity.description}</p>}
+                </div>
+              ))
+            )}
+          </div>
         </div>
       </div>
     </div>

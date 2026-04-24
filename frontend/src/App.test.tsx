@@ -4,6 +4,6 @@ import App from './App';
 
 test('renders main app heading', () => {
   render(<App />);
-  const headingElement = screen.getByText(/Botswana Political Sentiment Analysis/i);
+  const headingElement = screen.getByText(/Sentiment Analysis Engine/i);
   expect(headingElement).toBeInTheDocument();
 });
