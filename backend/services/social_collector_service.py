@@ -21,7 +21,7 @@ class SocialCollectorService:
         base_query = ' OR '.join(parts)
         return f"({base_query}) -is:retweet"
 
-    #Function for collecting posts from X based on a query and max results. 
+    # Function for collecting posts from X based on a query and max results. 
     def collect_x_recent_posts(self, query: Optional[str] = None, max_results: int = 20) -> Dict:
         if not self.bearer_token:
             raise RuntimeError('TWITTER_BEARER_TOKEN is required for X collection')
