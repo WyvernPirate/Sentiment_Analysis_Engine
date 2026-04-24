@@ -69,6 +69,24 @@ curl -X POST http://localhost:5000/api/social/collect \
 	-d '{"provider": "brightdata", "query": "(botswana politics OR #BotswanaPolitics)", "max_results": 20}'
 ```
 
+Bright Data dataset scrape with explicit input URLs (matches Bright Data dataset API style):
+```bash
+curl -X POST http://localhost:5000/api/social/collect \
+	-H "Content-Type: application/json" \
+	-d '{
+		"provider": "brightdata",
+		"input": [
+			{"url": "https://x.com/FabrizioRomano/status/1683559267524136962"},
+			{"url": "https://x.com/CNN/status/1796673270344810776"}
+		],
+		"request_params": {
+			"dataset_id": "your-dataset-id",
+			"notify": "false",
+			"include_errors": "true"
+		}
+	}'
+```
+
 Clean a collected batch:
 ```bash
 curl -X POST http://localhost:5000/api/social/clean \
