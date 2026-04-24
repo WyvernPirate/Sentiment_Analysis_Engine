@@ -18,6 +18,14 @@ class Config:
     TWITTER_API_SECRET = os.environ.get('TWITTER_API_SECRET')
     TWITTER_ACCESS_TOKEN = os.environ.get('TWITTER_ACCESS_TOKEN')
     TWITTER_ACCESS_TOKEN_SECRET = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET')
+
+    # Collection provider strategy
+    SOCIAL_PROVIDER = os.environ.get('SOCIAL_PROVIDER', 'x_api')
+
+    # Bright Data collector integration
+    BRIGHTDATA_API_TOKEN = os.environ.get('BRIGHTDATA_API_TOKEN')
+    BRIGHTDATA_COLLECTOR_URL = os.environ.get('BRIGHTDATA_COLLECTOR_URL')
+    BRIGHTDATA_TIMEOUT_SECONDS = int(os.environ.get('BRIGHTDATA_TIMEOUT_SECONDS', '60'))
     
     FACEBOOK_ACCESS_TOKEN = os.environ.get('FACEBOOK_ACCESS_TOKEN')
     FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID')
