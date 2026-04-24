@@ -38,6 +38,7 @@ Frontend default URL: `http://localhost:3000`
 - `DELETE /api/entities/<id>`
 - `GET /api/entities/health`
 - `GET /api/social/health`
+- `GET /api/social/auth-diagnose`
 - `POST /api/social/collect`
 - `GET /api/social/collections`
 - `POST /api/social/clean`
@@ -58,6 +59,10 @@ TWITTER_API_KEY=your-api-key
 TWITTER_API_SECRET=your-api-secret
 TWITTER_ACCESS_TOKEN=your-access-token
 TWITTER_ACCESS_TOKEN_SECRET=your-access-token-secret
+SOCIAL_PROVIDER=x_api
+BRIGHTDATA_API_TOKEN=your-brightdata-token
+BRIGHTDATA_COLLECTOR_URL=https://api.brightdata.com/your-collector-endpoint
+BRIGHTDATA_TIMEOUT_SECONDS=60
 ```
 
 ## 3) Social data pipeline (X first)
@@ -67,7 +72,14 @@ Collect data:
 ```bash
 curl -X POST http://localhost:5000/api/social/collect \
   -H "Content-Type: application/json" \
-  -d '{"query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+  -d '{"provider": "x_api", "query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+```
+
+Collect data with Bright Data provider:
+```bash
+curl -X POST http://localhost:5000/api/social/collect \
+  -H "Content-Type: application/json" \
+  -d '{"provider": "brightdata", "query": "(botswana politics OR #BotswanaPolitics)", "max_results": 20}'
 ```
 
 List collected batches:
@@ -90,3 +102,8 @@ curl -X POST http://localhost:5000/api/social/clean \
   ```
 - **Model download SSL/network failures**: app should still run using fallback behavior; `/api/health` should remain `healthy`.
 - **`externally-managed-environment` during `pip install`**: use a virtual environment (`python -m venv .venv_local`) and install with `.venv_local/bin/pip`.
+- **`/api/social/collect` returns 401 Unauthorized**:
+  1. Run `curl http://localhost:5000/api/social/auth-diagnose`.
+  2. Ensure `TWITTER_BEARER_TOKEN` is in `backend/.env` (not only `.env.example`).
+  3. Confirm token belongs to the same app/project with X API v2 access.
+  4. Restart backend after `.env` changes.

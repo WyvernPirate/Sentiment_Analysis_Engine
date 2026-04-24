@@ -45,13 +45,28 @@ TWITTER_API_KEY=your-api-key
 TWITTER_API_SECRET=your-api-secret
 TWITTER_ACCESS_TOKEN=your-access-token
 TWITTER_ACCESS_TOKEN_SECRET=your-access-token-secret
+
+# Optional provider switch
+SOCIAL_PROVIDER=x_api
+
+# Bright Data provider settings
+BRIGHTDATA_API_TOKEN=your-brightdata-token
+BRIGHTDATA_COLLECTOR_URL=https://api.brightdata.com/your-collector-endpoint
+BRIGHTDATA_TIMEOUT_SECONDS=60
 ```
 
 Collect recent political posts:
 ```bash
 curl -X POST http://localhost:5000/api/social/collect \
 	-H "Content-Type: application/json" \
-	-d '{"query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+	-d '{"provider": "x_api", "query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+```
+
+Collect via Bright Data provider:
+```bash
+curl -X POST http://localhost:5000/api/social/collect \
+	-H "Content-Type: application/json" \
+	-d '{"provider": "brightdata", "query": "(botswana politics OR #BotswanaPolitics)", "max_results": 20}'
 ```
 
 Clean a collected batch:
