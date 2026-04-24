@@ -109,7 +109,14 @@ Clean a specific batch (replace collection id):
 ```bash
 curl -X POST http://localhost:5000/api/social/clean \
   -H "Content-Type: application/json" \
-  -d '{"collection_id": "x-20260424T120000Z"}'
+  -d '{"collection_id": "x-20260424T120000Z", "filter_mode": "relaxed"}'
+```
+
+Use strict mode only after you have tuned the political pool:
+```bash
+curl -X POST http://localhost:5000/api/social/clean \
+  -H "Content-Type: application/json" \
+  -d '{"collection_id": "x-20260424T120000Z", "filter_mode": "strict"}'
 ```
 
 ## Troubleshooting
