@@ -37,6 +37,10 @@ Frontend default URL: `http://localhost:3000`
 - `POST /api/entities/add`
 - `DELETE /api/entities/<id>`
 - `GET /api/entities/health`
+- `GET /api/social/health`
+- `POST /api/social/collect`
+- `GET /api/social/collections`
+- `POST /api/social/clean`
 
 ## Environment variables
 Frontend (`frontend/.env`):
@@ -49,6 +53,33 @@ Backend (`backend/.env`):
 SECRET_KEY=change-me
 DATABASE_URL=sqlite:///botswana_sentiment.db
 POLITICAL_ENTITY_DB_PATH=data/political_entities.db
+TWITTER_BEARER_TOKEN=your-bearer-token
+TWITTER_API_KEY=your-api-key
+TWITTER_API_SECRET=your-api-secret
+TWITTER_ACCESS_TOKEN=your-access-token
+TWITTER_ACCESS_TOKEN_SECRET=your-access-token-secret
+```
+
+## 3) Social data pipeline (X first)
+The first implementation slice uses approved X API access for recent keyword search, stores raw batches, then cleans them.
+
+Collect data:
+```bash
+curl -X POST http://localhost:5000/api/social/collect \
+  -H "Content-Type: application/json" \
+  -d '{"query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+```
+
+List collected batches:
+```bash
+curl "http://localhost:5000/api/social/collections?limit=5"
+```
+
+Clean a specific batch (replace collection id):
+```bash
+curl -X POST http://localhost:5000/api/social/clean \
+  -H "Content-Type: application/json" \
+  -d '{"collection_id": "x-20260424T120000Z"}'
 ```
 
 ## Troubleshooting

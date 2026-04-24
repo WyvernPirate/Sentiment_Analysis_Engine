@@ -7,6 +7,8 @@ This backend is a Flask API for sentiment analysis and political text enrichment
 - Matches user-managed political lexicon terms.
 - Extracts political entities from a SQLite-backed entity table.
 - Supports runtime lexicon and entity updates without restart.
+- Collects political posts from X via approved API access.
+- Stores raw batches and runs a deterministic cleaning step.
 
 ## Local Run
 ```bash
@@ -28,7 +30,39 @@ python -m venv .venv_local
 - `POST /api/entities/add`
 - `DELETE /api/entities/<id>`
 - `GET /api/entities/health`
+- `GET /api/social/health`
+- `POST /api/social/collect`
+- `GET /api/social/collections`
+- `POST /api/social/clean`
+
+## Social Data Collection (X)
+Use approved X API credentials with bearer-token auth. Scraping workarounds are not supported.
+
+Backend `.env` entries:
+```bash
+TWITTER_BEARER_TOKEN=your-bearer-token
+TWITTER_API_KEY=your-api-key
+TWITTER_API_SECRET=your-api-secret
+TWITTER_ACCESS_TOKEN=your-access-token
+TWITTER_ACCESS_TOKEN_SECRET=your-access-token-secret
+```
+
+Collect recent political posts:
+```bash
+curl -X POST http://localhost:5000/api/social/collect \
+	-H "Content-Type: application/json" \
+	-d '{"query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+```
+
+Clean a collected batch:
+```bash
+curl -X POST http://localhost:5000/api/social/clean \
+	-H "Content-Type: application/json" \
+	-d '{"collection_id": "x-20260424T120000Z"}'
+```
 
 ## Persistence
 - Lexicon JSON: `backend/data/setswana_lexicon.json`
 - Entity DB (SQLite): `backend/data/political_entities.db`
+- Raw social data: `backend/data/raw_social_data/`
+- Cleaned social data: `backend/data/cleaned_social_data/`
