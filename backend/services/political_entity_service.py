@@ -165,5 +165,37 @@ class PoliticalEntityService:
 
         return matches
 
+    def get_search_terms(self) -> List[str]:
+        terms = set()
+
+        for entity in self.list_entities():
+            entity_name = (entity.get('entity') or '').strip().lower()
+            full_name = (entity.get('full_name') or '').strip().lower()
+
+            if entity_name:
+                terms.add(entity_name)
+
+            if full_name:
+                terms.add(full_name)
+                terms.update(part for part in re.split(r'\s+', full_name) if part)
+
+                compact = re.sub(r'[^a-z0-9]+', '', full_name)
+                snake_case = re.sub(r'[^a-z0-9]+', '_', full_name).strip('_')
+
+                if compact:
+                    terms.add(compact)
+                    terms.add(f'@{compact}')
+                if snake_case:
+                    terms.add(snake_case)
+                    terms.add(f'@{snake_case}')
+
+            if entity_name:
+                compact_entity = re.sub(r'[^a-z0-9]+', '', entity_name)
+                if compact_entity:
+                    terms.add(compact_entity)
+                    terms.add(f'@{compact_entity}')
+
+        return sorted(term for term in terms if term)
+
 
 political_entity_service = PoliticalEntityService()
