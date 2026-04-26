@@ -73,7 +73,7 @@ if __name__ == '__main__':
     print("   POST /api/entities/add - Add political entity")
     print("   DELETE /api/entities/<id> - Delete political entity")
     print("   GET  /api/social/health - Social pipeline health")
-    print("   POST /api/social/collect - Collect X posts")
+    print("   POST /api/social/collect - Collect social posts")
     print("   GET  /api/social/collections - List collected batches")
     print("   POST /api/social/clean - Clean a collected batch")
     print("=" * 50)
