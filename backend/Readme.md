@@ -7,7 +7,7 @@ This backend is a Flask API for sentiment analysis and political text enrichment
 - Matches user-managed political lexicon terms.
 - Extracts political entities from a SQLite-backed entity table.
 - Supports runtime lexicon and entity updates without restart.
-- Collects political posts from X via approved API access.
+- Collects social data through Bright Data.
 - Stores raw batches and runs a deterministic cleaning step.
 
 ## Local Run
@@ -35,39 +35,84 @@ python -m venv .venv_local
 - `GET /api/social/collections`
 - `POST /api/social/clean`
 
-## Social Data Collection (X)
-Use approved X API credentials with bearer-token auth. Scraping workarounds are not supported.
+## Social Data Collection
 
 Backend `.env` entries:
 ```bash
-TWITTER_BEARER_TOKEN=your-bearer-token
-TWITTER_API_KEY=your-api-key
-TWITTER_API_SECRET=your-api-secret
-TWITTER_ACCESS_TOKEN=your-access-token
-TWITTER_ACCESS_TOKEN_SECRET=your-access-token-secret
-
-# Optional provider switch
-SOCIAL_PROVIDER=x_api
+# Provider: brightdata, apify, or twikit
+SOCIAL_PROVIDER=brightdata
 
 # Bright Data provider settings
 BRIGHTDATA_API_TOKEN=your-brightdata-token
 BRIGHTDATA_COLLECTOR_URL=https://api.brightdata.com/your-collector-endpoint
 BRIGHTDATA_TIMEOUT_SECONDS=60
+
+APIFY_API_TOKEN=your-apify-token
+APIFY_ACTOR_ID=your-apify-actor-id
+APIFY_TIMEOUT_SECONDS=120
+APIFY_WAIT_FOR_FINISH_SECONDS=120
+
+TWIKIT_USERNAME=your-x-username
+TWIKIT_EMAIL=your-x-email
+TWIKIT_PASSWORD=your-x-password
+TWIKIT_COOKIES_PATH=data/twikit_cookies.json
+TWIKIT_LANGUAGE=en-US
+TWIKIT_ENABLE_UI_METRICS=true
 ```
 
-Collect recent political posts:
+Collect via Bright Data (URL-only dataset mode):
 ```bash
 curl -X POST http://localhost:5000/api/social/collect \
 	-H "Content-Type: application/json" \
-	-d '{"provider": "x_api", "query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+	-d '{
+		"provider": "brightdata",
+		"input": [
+			{"url": "https://x.com/FabrizioRomano/status/1683559267524136962"}
+		],
+		"request_params": {
+			"dataset_id": "your-dataset-id",
+			"notify": "false",
+			"include_errors": "true"
+		}
+	}'
 ```
 
-Collect via Bright Data provider:
+Collect via Apify (query search):
 ```bash
 curl -X POST http://localhost:5000/api/social/collect \
 	-H "Content-Type: application/json" \
-	-d '{"provider": "brightdata", "query": "(botswana politics OR #BotswanaPolitics)", "max_results": 20}'
+	-d '{
+		"provider": "apify",
+		"query": "duma boko botswana politics",
+		"max_results": 50,
+		"request_params": {
+			"actor_id": "your-apify-actor-id"
+		}
+	}'
 ```
+
+Collect via Twikit (query search with authenticated account):
+```bash
+curl -X POST http://localhost:5000/api/social/collect \
+	-H "Content-Type: application/json" \
+	-d '{
+		"provider": "twikit",
+		"query": "duma boko botswana politics",
+		"max_results": 50
+	}'
+```
+
+If Twikit login/search becomes unstable due X anti-bot script changes, try:
+- setting `TWIKIT_ENABLE_UI_METRICS=false` temporarily
+- switching to `provider: "apify"` for reliable query-based collection
+
+`POST /api/social/collect` now returns `records_preview` and metadata counters so you can quickly verify the important fields:
+- `source_post_id`
+- `post_url`
+- `author_username`
+- `created_at_utc`
+- `text_raw`
+- `public_metrics`
 
 Bright Data dataset scrape with explicit input URLs (matches Bright Data dataset API style):
 ```bash
