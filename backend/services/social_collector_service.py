@@ -48,7 +48,7 @@ class SocialCollectorService:
             token = token[7:].strip()
         return token
 
-    # This function constructs a default query string for collecting relavent posts
+    # This function constructs a default query string for collecting relevant posts
     def _build_default_query(self) -> str:
         return self._build_query_from_terms(self._build_dynamic_search_terms())
 
