@@ -55,3 +55,33 @@ export interface SocialCollection {
     collected_at_utc: string;
     run_meta?: Record<string, unknown>;
 }
+
+export interface SocialInputItem {
+    url?: string;
+    text?: string;
+    author?: string;
+    created_at?: string;
+}
+
+export interface SocialCollectResponse {
+    collection_id: string;
+    source: string;
+    provider: string;
+    query: string;
+    count: number;
+    raw_file: string;
+    meta?: Record<string, unknown>;
+    records_preview?: Array<Record<string, unknown>>;
+    error?: string;
+}
+
+export interface SocialCleanResponse {
+    collection_id: string;
+    raw_count: number;
+    cleaned_count: number;
+    filter_mode: 'relaxed' | 'strict';
+    cleaned_file: string;
+    report_file: string;
+    report?: Record<string, unknown>;
+    error?: string;
+}
