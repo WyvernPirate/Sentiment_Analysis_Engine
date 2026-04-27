@@ -37,3 +37,21 @@ export interface PoliticalEntity {
     description?: string;
     created_at: string;
 }
+
+export interface SocialHealthStatus {
+    status: string;
+    provider_default?: string;
+    brightdata_configured?: boolean;
+    apify_configured?: boolean;
+    twikit_configured?: boolean;
+}
+
+export interface SocialCollection {
+    collection_id: string;
+    source: string;
+    query: string;
+    count: number;
+    raw_file: string;
+    collected_at_utc: string;
+    run_meta?: Record<string, unknown>;
+}

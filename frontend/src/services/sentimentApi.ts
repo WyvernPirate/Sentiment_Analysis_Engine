@@ -1,4 +1,11 @@
-import { SentimentResult, TestExample, HealthStatus, PoliticalEntity } from '../types/sentiment';
+import {
+    SentimentResult,
+    TestExample,
+    HealthStatus,
+    PoliticalEntity,
+    SocialHealthStatus,
+    SocialCollection,
+} from '../types/sentiment';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
@@ -73,6 +80,31 @@ export const sentimentApi = {
             return response.ok;
         } catch {
             return false;
+        }
+    },
+
+    async checkSocialHealth(): Promise<SocialHealthStatus | null> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/social/health`);
+            if (!response.ok) {
+                return null;
+            }
+            return response.json();
+        } catch {
+            return null;
+        }
+    },
+
+    async listSocialCollections(limit = 20): Promise<SocialCollection[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/social/collections?limit=${limit}`);
+            if (!response.ok) {
+                return [];
+            }
+            const data = await response.json();
+            return Array.isArray(data.collections) ? data.collections : [];
+        } catch {
+            return [];
         }
     }
 };
