@@ -129,6 +129,39 @@ const Health: React.FC = () => {
             </div>
           </div>
         </section>
+
+        <section className="bg-black border border-outline-variant/20 flex flex-col">
+          <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant/20 flex justify-between items-center">
+            <div className="flex items-center gap-3">
+              <div className="flex gap-1.5">
+                <div className="w-2.5 h-2.5 bg-error-container/40"></div>
+                <div className="w-2.5 h-2.5 bg-primary/40"></div>
+                <div className="w-2.5 h-2.5 bg-secondary/40"></div>
+              </div>
+              <span className="text-[10px] font-mono text-on-surface-variant tracking-wider">LIVE_LOG_STREAM // tty1</span>
+            </div>
+            <div className="flex gap-4">
+              <span className="text-[10px] font-mono text-secondary uppercase">recording</span>
+              <span className="text-[10px] font-mono text-on-surface-variant">FILTER: ALL_EVENTS</span>
+            </div>
+          </div>
+          <div className="h-80 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1">
+            <p className="text-on-surface-variant">[2023-10-27 14:02:11] <span className="text-secondary">[INFO]</span> Pipeline connection established to source: RSS_GOV_BW</p>
+            <p className="text-on-surface-variant">[2023-10-27 14:02:13] <span className="text-secondary">[INFO]</span> Batch 0x9f4a processed: 42 entities extracted.</p>
+            <p className="text-on-surface-variant">[2023-10-27 14:02:45] <span className="text-tertiary">[WARN]</span> Memory threshold reached (82%). Triggering garbage_collection_v2.</p>
+            <p className="text-on-surface-variant">[2023-10-27 14:03:01] <span className="text-error">[ERR!]</span> JSON_PARSE_ERROR at source TWITTER_STREAM_ALPHA</p>
+            <p className="text-on-surface-variant">[2023-10-27 14:03:08] <span className="text-secondary">[INFO]</span> Cache cleared. 1.4GB freed in 12ms.</p>
+            <p className="text-on-surface-variant">[2023-10-27 14:03:44] <span className="text-secondary">[INFO]</span> Sentiment update: +0.04 [Sovereign_Stability_Index]</p>
+          </div>
+          <div className="bg-surface-container-high px-4 py-1.5 flex items-center border-t border-outline-variant/20">
+            <span className="text-primary font-mono text-[10px] mr-2">admin@sovereign:~$</span>
+            <input
+              type="text"
+              placeholder="type command and press enter..."
+              className="bg-transparent border-none focus:ring-0 text-[10px] font-mono w-full p-0 text-on-surface placeholder-on-surface-variant/40"
+            />
+          </div>
+        </section>
       </div>
     </div>
   );
