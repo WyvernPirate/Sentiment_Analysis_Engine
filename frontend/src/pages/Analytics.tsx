@@ -108,6 +108,10 @@ const Analytics: React.FC = () => {
                   <option>PARTY: BDP</option>
                   <option>PARTY: UDC</option>
                 </select>
+                <select className="bg-surface-container-lowest border-0 text-xs font-mono text-primary px-2 py-1 focus:ring-0">
+                  <option>SOURCE: X_FIREHOSE</option>
+                  <option>SOURCE: FB_PUBLIC</option>
+                </select>
               </div>
             </div>
           </div>
