@@ -5,6 +5,9 @@ import {
     PoliticalEntity,
     SocialHealthStatus,
     SocialCollection,
+    SocialInputItem,
+    SocialCollectResponse,
+    SocialCleanResponse,
 } from '../types/sentiment';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -105,6 +108,80 @@ export const sentimentApi = {
             return Array.isArray(data.collections) ? data.collections : [];
         } catch {
             return [];
+        }
+    },
+
+    async collectSocialPosts(payload: {
+        provider?: string;
+        query?: string;
+        max_results?: number;
+        input?: SocialInputItem[];
+    }): Promise<SocialCollectResponse> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/social/collect`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                return {
+                    collection_id: '',
+                    source: 'x',
+                    provider: payload.provider || 'default',
+                    query: payload.query || '',
+                    count: 0,
+                    raw_file: '',
+                    error: data.error || 'Collection failed',
+                };
+            }
+            return data as SocialCollectResponse;
+        } catch {
+            return {
+                collection_id: '',
+                source: 'x',
+                provider: payload.provider || 'default',
+                query: payload.query || '',
+                count: 0,
+                raw_file: '',
+                error: 'Collection failed',
+            };
+        }
+    },
+
+    async cleanSocialCollection(payload: {
+        collection_id: string;
+        filter_mode: 'relaxed' | 'strict';
+    }): Promise<SocialCleanResponse> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/social/clean`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                return {
+                    collection_id: payload.collection_id,
+                    raw_count: 0,
+                    cleaned_count: 0,
+                    filter_mode: payload.filter_mode,
+                    cleaned_file: '',
+                    report_file: '',
+                    error: data.error || 'Cleaning failed',
+                };
+            }
+            return data as SocialCleanResponse;
+        } catch {
+            return {
+                collection_id: payload.collection_id,
+                raw_count: 0,
+                cleaned_count: 0,
+                filter_mode: payload.filter_mode,
+                cleaned_file: '',
+                report_file: '',
+                error: 'Cleaning failed',
+            };
         }
     }
 };
