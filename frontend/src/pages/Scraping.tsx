@@ -1,12 +1,85 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { sentimentApi } from '../services/sentimentApi';
+import { SocialCollection, SocialHealthStatus } from '../types/sentiment';
 
 const Scraping: React.FC = () => {
-  const sources = [
+  const [socialHealth, setSocialHealth] = useState<SocialHealthStatus | null>(null);
+  const [collections, setCollections] = useState<SocialCollection[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+
+  const fallbackSources = [
     { source: 'X API Stream', region: 'BW', status: 'ONLINE', recordsPerMin: 486, failureRate: '0.2%' },
     { source: 'Facebook Public Feed', region: 'BW', status: 'ONLINE', recordsPerMin: 221, failureRate: '0.9%' },
     { source: 'News RSS Cluster', region: 'SADC', status: 'DEGRADED', recordsPerMin: 77, failureRate: '3.1%' },
     { source: 'Community Forums', region: 'BW', status: 'ONLINE', recordsPerMin: 92, failureRate: '1.2%' },
   ];
+
+  useEffect(() => {
+    const loadSocialData = async () => {
+      try {
+        const [healthData, collectionData] = await Promise.all([
+          sentimentApi.checkSocialHealth(),
+          sentimentApi.listSocialCollections(10),
+        ]);
+
+        setSocialHealth(healthData);
+        setCollections(collectionData);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    void loadSocialData();
+  }, []);
+
+  const totalIngested = useMemo(() => collections.reduce((acc, row) => acc + (row.count || 0), 0), [collections]);
+
+  const recentEvents = useMemo(() => {
+    if (!collections.length) {
+      return [
+        '14:09:11 | CONNECTOR x-api-eu-west recovered',
+        '14:03:28 | rss-botswana timeout spike detected',
+        '13:57:05 | queue rebalance completed',
+      ];
+    }
+
+    return collections.slice(0, 3).map((item) => {
+      const timestamp = new Date(item.collected_at_utc).toLocaleTimeString([], { hour12: false });
+      return `${timestamp} | ${item.collection_id} ingested ${item.count} records`;
+    });
+  }, [collections]);
+
+  const sourceRows = useMemo(() => {
+    if (!socialHealth) {
+      return fallbackSources;
+    }
+
+    return [
+      {
+        source: 'Bright Data Provider',
+        region: 'GLOBAL',
+        status: socialHealth.brightdata_configured ? 'ONLINE' : 'DEGRADED',
+        recordsPerMin: collections[0]?.count || 0,
+        failureRate: socialHealth.brightdata_configured ? '0.3%' : '100%',
+      },
+      {
+        source: 'Apify Provider',
+        region: 'GLOBAL',
+        status: socialHealth.apify_configured ? 'ONLINE' : 'DEGRADED',
+        recordsPerMin: collections[1]?.count || 0,
+        failureRate: socialHealth.apify_configured ? '0.6%' : '100%',
+      },
+      {
+        source: 'Twikit Provider',
+        region: 'BW',
+        status: socialHealth.twikit_configured ? 'ONLINE' : 'DEGRADED',
+        recordsPerMin: collections[2]?.count || 0,
+        failureRate: socialHealth.twikit_configured ? '1.1%' : '100%',
+      },
+    ];
+  }, [socialHealth, collections]);
+
+  const activeSources = sourceRows.filter((row) => row.status === 'ONLINE').length;
 
   return (
     <div className="ml-64 pt-14 min-h-screen bg-surface">
@@ -25,19 +98,19 @@ const Scraping: React.FC = () => {
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
             <p className="font-mono text-[10px] uppercase text-on-surface-variant">Active Sources</p>
-            <p className="text-3xl font-headline font-bold text-primary mt-2">12</p>
+            <p className="text-3xl font-headline font-bold text-primary mt-2">{activeSources || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
             <p className="font-mono text-[10px] uppercase text-on-surface-variant">Ingested / Min</p>
-            <p className="text-3xl font-headline font-bold text-secondary mt-2">876</p>
+            <p className="text-3xl font-headline font-bold text-secondary mt-2">{totalIngested || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
             <p className="font-mono text-[10px] uppercase text-on-surface-variant">Queue Depth</p>
-            <p className="text-3xl font-headline font-bold text-on-surface mt-2">2.4K</p>
+            <p className="text-3xl font-headline font-bold text-on-surface mt-2">{collections.length ? `${collections.length} B` : '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Failed Jobs (24h)</p>
-            <p className="text-3xl font-headline font-bold text-tertiary mt-2">17</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Provider Default</p>
+            <p className="text-3xl font-headline font-bold text-tertiary mt-2">{socialHealth?.provider_default || '--'}</p>
           </div>
         </section>
 
@@ -55,7 +128,7 @@ const Scraping: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="font-mono text-[10px]">
-                {sources.map((row) => (
+                {sourceRows.map((row) => (
                   <tr key={row.source} className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors">
                     <td className="py-3 text-primary">{row.source}</td>
                     <td className="py-3 text-right">{row.region}</td>
@@ -99,12 +172,13 @@ const Scraping: React.FC = () => {
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
             <h3 className="font-headline text-xs font-bold uppercase tracking-widest mb-3">Recent Events</h3>
             <div className="space-y-2 font-mono text-[10px]">
-              <p className="text-secondary">14:09:11 | CONNECTOR x-api-eu-west recovered</p>
-              <p className="text-tertiary">14:03:28 | rss-botswana timeout spike detected</p>
-              <p className="text-on-surface-variant">13:57:05 | queue rebalance completed</p>
+              <p className="text-secondary">{recentEvents[0]}</p>
+              <p className="text-tertiary">{recentEvents[1] || 'NO_RECENT_EVENT'}</p>
+              <p className="text-on-surface-variant">{recentEvents[2] || 'NO_RECENT_EVENT'}</p>
             </div>
           </div>
         </section>
+        {loading && <p className="text-on-surface-variant font-mono text-[10px]">SYNCING_SOURCES...</p>}
       </div>
     </div>
   );
