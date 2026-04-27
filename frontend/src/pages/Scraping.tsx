@@ -1,6 +1,10 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
-import { SocialCollection, SocialHealthStatus } from '../types/sentiment';
+import { SocialCollection, SocialHealthStatus, SocialInputItem } from '../types/sentiment';
+
+interface CsvPreviewRow extends SocialInputItem {
+  isValid: boolean;
+}
 
 const FALLBACK_SOURCES = [
   { source: 'X API Stream', region: 'BW', status: 'ONLINE', recordsPerMin: 486, failureRate: '0.2%' },
@@ -13,24 +17,185 @@ const Scraping: React.FC = () => {
   const [socialHealth, setSocialHealth] = useState<SocialHealthStatus | null>(null);
   const [collections, setCollections] = useState<SocialCollection[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [actionLoading, setActionLoading] = useState<boolean>(false);
+  const [statusMessage, setStatusMessage] = useState<string>('');
+  const [statusError, setStatusError] = useState<string>('');
+  const [provider, setProvider] = useState<string>('');
+  const [query, setQuery] = useState<string>('botswana politics');
+  const [maxResults, setMaxResults] = useState<number>(20);
+  const [selectedCollectionId, setSelectedCollectionId] = useState<string>('');
+  const [filterMode, setFilterMode] = useState<'relaxed' | 'strict'>('relaxed');
+  const [csvRows, setCsvRows] = useState<SocialInputItem[]>([]);
+  const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([]);
+  const [csvFileName, setCsvFileName] = useState<string>('');
+
+  const refreshSocialData = useCallback(async () => {
+    const [healthData, collectionData] = await Promise.all([
+      sentimentApi.checkSocialHealth(),
+      sentimentApi.listSocialCollections(10),
+    ]);
+
+    setSocialHealth(healthData);
+    setCollections(collectionData);
+    if (!selectedCollectionId && collectionData.length > 0) {
+      setSelectedCollectionId(collectionData[0].collection_id);
+    }
+  }, [selectedCollectionId]);
 
   useEffect(() => {
     const loadSocialData = async () => {
       try {
-        const [healthData, collectionData] = await Promise.all([
-          sentimentApi.checkSocialHealth(),
-          sentimentApi.listSocialCollections(10),
-        ]);
-
-        setSocialHealth(healthData);
-        setCollections(collectionData);
+        await refreshSocialData();
       } finally {
         setLoading(false);
       }
     };
 
     void loadSocialData();
-  }, []);
+  }, [refreshSocialData]);
+
+  const parseCsvLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i += 1) {
+      const char = line[i];
+
+      if (char === '"') {
+        if (inQuotes && line[i + 1] === '"') {
+          current += '"';
+          i += 1;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+
+    result.push(current.trim());
+    return result;
+  };
+
+  const handleCsvFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
+    }
+
+    setStatusError('');
+    setStatusMessage('');
+
+    try {
+      const text = await file.text();
+      const lines = text.split(/\r?\n/).filter((line) => line.trim().length > 0);
+
+      if (lines.length < 2) {
+        setStatusError('CSV requires a header and at least one data row.');
+        return;
+      }
+
+      const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+      const previewRows: CsvPreviewRow[] = lines.slice(1).map((line) => {
+        const values = parseCsvLine(line);
+        const rowMap: Record<string, string> = {};
+
+        headers.forEach((header, idx) => {
+          rowMap[header] = values[idx] || '';
+        });
+
+        const mapped = {
+          url: rowMap.url || rowMap.post_url || '',
+          text: rowMap.text || rowMap.text_raw || '',
+          author: rowMap.author || rowMap.author_username || '',
+          created_at: rowMap.created_at || rowMap.created_at_utc || '',
+        };
+
+        return {
+          ...mapped,
+          isValid: Boolean(mapped.url || mapped.text),
+        };
+      });
+
+      const rows = previewRows.filter((row) => row.isValid).map((row) => ({
+        url: row.url,
+        text: row.text,
+        author: row.author,
+        created_at: row.created_at,
+      }));
+
+      setCsvRows(rows);
+      setCsvPreviewRows(previewRows);
+      setCsvFileName(file.name);
+      setStatusMessage(`Loaded ${rows.length} valid CSV records from ${file.name}.`);
+    } catch {
+      setStatusError('Failed to parse CSV file.');
+    }
+  };
+
+  const clearCsv = () => {
+    setCsvRows([]);
+    setCsvPreviewRows([]);
+    setCsvFileName('');
+  };
+
+  const handleCollect = async () => {
+    setActionLoading(true);
+    setStatusError('');
+    setStatusMessage('');
+
+    try {
+      const payload = {
+        provider: provider || undefined,
+        query: query || undefined,
+        max_results: maxResults,
+        input: csvRows.length ? csvRows : undefined,
+      };
+
+      const result = await sentimentApi.collectSocialPosts(payload);
+      if (result.error) {
+        setStatusError(result.error);
+        return;
+      }
+
+      setStatusMessage(`Collection complete: ${result.count} records saved as ${result.collection_id}.`);
+      await refreshSocialData();
+      setSelectedCollectionId(result.collection_id);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleClean = async () => {
+    if (!selectedCollectionId) {
+      setStatusError('Select a collection to clean first.');
+      return;
+    }
+
+    setActionLoading(true);
+    setStatusError('');
+    setStatusMessage('');
+
+    try {
+      const result = await sentimentApi.cleanSocialCollection({
+        collection_id: selectedCollectionId,
+        filter_mode: filterMode,
+      });
+
+      if (result.error) {
+        setStatusError(result.error);
+        return;
+      }
+
+      setStatusMessage(`Cleaning complete: ${result.cleaned_count}/${result.raw_count} records retained (${result.filter_mode}).`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
 
   const totalIngested = useMemo(() => collections.reduce((acc, row) => acc + (row.count || 0), 0), [collections]);
 
@@ -80,6 +245,8 @@ const Scraping: React.FC = () => {
   }, [socialHealth, collections]);
 
   const activeSources = sourceRows.filter((row) => row.status === 'ONLINE').length;
+  const invalidCsvCount = csvPreviewRows.filter((row) => !row.isValid).length;
+  const previewRows = csvPreviewRows.slice(0, 8);
 
   return (
     <div className="ml-64 pt-14 min-h-screen bg-surface">
@@ -89,11 +256,159 @@ const Scraping: React.FC = () => {
             <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Scraping Sources</h1>
             <p className="text-on-surface-variant font-mono text-xs mt-2">DATA_COLLECTION_SYSTEM</p>
           </div>
-          <button className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all">
-            <span className="material-symbols-outlined text-sm">sync</span>
-            Resync Sources
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                void refreshSocialData();
+              }}
+              className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all"
+            >
+              <span className="material-symbols-outlined text-sm">sync</span>
+              Resync Sources
+            </button>
+          </div>
         </div>
+
+        <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-4">
+          <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Ingestion Control</h2>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <input
+              value={provider}
+              onChange={(e) => setProvider(e.target.value)}
+              placeholder="provider (optional)"
+              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="query"
+              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
+            />
+            <input
+              type="number"
+              min={1}
+              value={maxResults}
+              onChange={(e) => setMaxResults(Number(e.target.value))}
+              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
+            />
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={handleCsvFile}
+              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 file:mr-2 file:border-0 file:bg-primary/10 file:text-primary file:px-2 file:py-1"
+            />
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            <select
+              value={selectedCollectionId}
+              onChange={(e) => setSelectedCollectionId(e.target.value)}
+              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
+            >
+              <option value="">Select collection</option>
+              {collections.map((entry) => (
+                <option key={entry.collection_id} value={entry.collection_id}>
+                  {entry.collection_id}
+                </option>
+              ))}
+            </select>
+            <select
+              value={filterMode}
+              onChange={(e) => setFilterMode(e.target.value as 'relaxed' | 'strict')}
+              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
+            >
+              <option value="relaxed">filter: relaxed</option>
+              <option value="strict">filter: strict</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => {
+                void handleCollect();
+              }}
+              disabled={actionLoading}
+              className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 disabled:opacity-60"
+            >
+              Collect{csvRows.length ? ` (${csvRows.length} CSV)` : ''}
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                void handleClean();
+              }}
+              disabled={actionLoading || !selectedCollectionId}
+              className="bg-surface-container-high text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 border-b-2 border-primary disabled:opacity-60"
+            >
+              Clean Selected
+            </button>
+          </div>
+          {(csvFileName || statusMessage || statusError) && (
+            <div className="space-y-1">
+              {csvFileName && (
+                <div className="flex items-center justify-between">
+                  <p className="font-mono text-[10px] text-primary">CSV: {csvFileName}</p>
+                  <button
+                    type="button"
+                    onClick={clearCsv}
+                    className="font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
+                  >
+                    CLEAR
+                  </button>
+                </div>
+              )}
+              {statusMessage && <p className="font-mono text-[10px] text-secondary">{statusMessage}</p>}
+              {statusError && <p className="font-mono text-[10px] text-tertiary">{statusError}</p>}
+            </div>
+          )}
+        </section>
+
+        {csvPreviewRows.length > 0 && (
+          <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest">CSV Preview</h2>
+              <div className="flex gap-3 font-mono text-[10px]">
+                <span className="text-secondary">VALID: {csvRows.length}</span>
+                <span className="text-tertiary">INVALID: {invalidCsvCount}</span>
+                <span className="text-on-surface-variant">TOTAL: {csvPreviewRows.length}</span>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
+                    <th className="pb-2 font-normal">Status</th>
+                    <th className="pb-2 font-normal">URL</th>
+                    <th className="pb-2 font-normal">Text</th>
+                    <th className="pb-2 font-normal">Author</th>
+                    <th className="pb-2 font-normal">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="font-mono text-[10px]">
+                  {previewRows.map((row, idx) => (
+                    <tr key={`${row.url || row.text || 'row'}-${idx}`} className="border-b border-outline-variant/10">
+                      <td className={`py-2 ${row.isValid ? 'text-secondary' : 'text-tertiary'}`}>
+                        {row.isValid ? 'VALID' : 'INVALID'}
+                      </td>
+                      <td className="py-2 text-primary max-w-[240px] truncate">{row.url || '--'}</td>
+                      <td className="py-2 max-w-[360px] truncate">{row.text || '--'}</td>
+                      <td className="py-2">{row.author || '--'}</td>
+                      <td className="py-2">{row.created_at || '--'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {csvPreviewRows.length > previewRows.length && (
+              <p className="font-mono text-[10px] text-on-surface-variant">
+                Showing {previewRows.length} of {csvPreviewRows.length} parsed rows.
+              </p>
+            )}
+            {invalidCsvCount > 0 && (
+              <p className="font-mono text-[10px] text-tertiary">
+                Invalid rows are skipped automatically (must contain at least URL or text).
+              </p>
+            )}
+          </section>
+        )}
 
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
