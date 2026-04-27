@@ -71,7 +71,8 @@ const Entities: React.FC = () => {
           </div>
         </section>
 
-        <section className="bg-surface-container-low border border-outline-variant/10 p-4">
+        <section className="grid grid-cols-12 gap-6">
+          <div className="col-span-12 lg:col-span-8 bg-surface-container-low border border-outline-variant/10 p-4">
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Entity Registry</h2>
             <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/20 px-3 py-1.5">
@@ -125,6 +126,64 @@ const Entities: React.FC = () => {
             </table>
           </div>
           {loading && <p className="text-on-surface-variant font-mono text-[10px] mt-3">SYNCING_ENTITY_REGISTRY...</p>}
+          </div>
+
+          <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant/10 p-4">
+            <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Ingestion Protocols</h2>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-surface-container-high border-l-2 border-primary">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-tighter">TWITTER_API_V2</p>
+                  <p className="text-[10px] text-on-surface-variant font-mono">Status: Stream Active</p>
+                </div>
+                <div className="w-9 h-5 bg-secondary flex items-center px-0.5">
+                  <div className="w-3 h-3 bg-on-secondary"></div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-surface-container-high border-l-2 border-outline-variant/40">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-tighter">FACEBOOK_SELENIUM</p>
+                  <p className="text-[10px] text-on-surface-variant font-mono">Status: Headless Sleep</p>
+                </div>
+                <div className="w-9 h-5 bg-surface-container-highest flex items-center justify-end px-0.5">
+                  <div className="w-3 h-3 bg-outline"></div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-surface-container-high border-l-2 border-primary">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-tighter">LOCAL_NEWS_RSS</p>
+                  <p className="text-[10px] text-on-surface-variant font-mono">Status: 24 Sinks Active</p>
+                </div>
+                <div className="w-9 h-5 bg-secondary flex items-center px-0.5">
+                  <div className="w-3 h-3 bg-on-secondary"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="bg-surface-container-low border border-outline-variant/15 p-4">
+            <p className="font-headline text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Ingestion Latency</p>
+            <p className="font-mono text-3xl font-bold text-secondary">142<span className="text-xs ml-1">ms</span></p>
+          </div>
+          <div className="bg-surface-container-low border border-outline-variant/15 p-4">
+            <p className="font-headline text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Payload Error Rate</p>
+            <p className="font-mono text-3xl font-bold text-on-surface">0.04<span className="text-xs ml-1">%</span></p>
+          </div>
+          <div className="bg-surface-container-low border border-outline-variant/15 p-4">
+            <p className="font-headline text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Compute Utilization</p>
+            <p className="font-mono text-3xl font-bold text-primary">68.2<span className="text-xs ml-1">%</span></p>
+          </div>
+        </section>
+
+        <section className="bg-surface-container-low border border-outline-variant/15 p-4">
+          <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-3">Live Signal Feed</h2>
+          <div className="space-y-2 font-mono text-[11px]">
+            <p className="text-on-surface-variant hover:text-on-surface transition-colors">[14:22:01] [INGEST_OK] Source: @Twitter_BW - Entity: UDC - Sentiment: POSITIVE - Mentions: 1.2k</p>
+            <p className="text-on-surface-variant hover:text-on-surface transition-colors">[14:21:58] [ANOMALY_DET] Source: Facebook_BW - Keyword match: Election Volatility - Severity: MEDIUM</p>
+            <p className="text-on-surface-variant hover:text-on-surface transition-colors">[14:21:45] [INGEST_OK] Source: DailyNews_BW - Entity: BDP - Sentiment: NEUTRAL - Mentions: 450</p>
+          </div>
         </section>
       </div>
     </div>
