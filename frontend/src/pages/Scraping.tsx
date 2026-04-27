@@ -2,17 +2,17 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
 import { SocialCollection, SocialHealthStatus } from '../types/sentiment';
 
+const FALLBACK_SOURCES = [
+  { source: 'X API Stream', region: 'BW', status: 'ONLINE', recordsPerMin: 486, failureRate: '0.2%' },
+  { source: 'Facebook Public Feed', region: 'BW', status: 'ONLINE', recordsPerMin: 221, failureRate: '0.9%' },
+  { source: 'News RSS Cluster', region: 'SADC', status: 'DEGRADED', recordsPerMin: 77, failureRate: '3.1%' },
+  { source: 'Community Forums', region: 'BW', status: 'ONLINE', recordsPerMin: 92, failureRate: '1.2%' },
+];
+
 const Scraping: React.FC = () => {
   const [socialHealth, setSocialHealth] = useState<SocialHealthStatus | null>(null);
   const [collections, setCollections] = useState<SocialCollection[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-
-  const fallbackSources = [
-    { source: 'X API Stream', region: 'BW', status: 'ONLINE', recordsPerMin: 486, failureRate: '0.2%' },
-    { source: 'Facebook Public Feed', region: 'BW', status: 'ONLINE', recordsPerMin: 221, failureRate: '0.9%' },
-    { source: 'News RSS Cluster', region: 'SADC', status: 'DEGRADED', recordsPerMin: 77, failureRate: '3.1%' },
-    { source: 'Community Forums', region: 'BW', status: 'ONLINE', recordsPerMin: 92, failureRate: '1.2%' },
-  ];
 
   useEffect(() => {
     const loadSocialData = async () => {
@@ -51,7 +51,7 @@ const Scraping: React.FC = () => {
 
   const sourceRows = useMemo(() => {
     if (!socialHealth) {
-      return fallbackSources;
+      return FALLBACK_SOURCES;
     }
 
     return [
