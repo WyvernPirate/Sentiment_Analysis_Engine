@@ -92,8 +92,8 @@ def analyze():
         # Post-inference political entity extraction (database-backed)
         political_entities = political_entity_service.extract_entities(text)
         
-        # Trigger word extraction for UI display
-        sentiment_words = sentiment_service.extract_sentiment_trigger_words(text)
+        # Trigger word extraction for UI display - passing sentiment for model-aware analysis
+        sentiment_words = sentiment_service.extract_sentiment_trigger_words(text, target_sentiment=sentiment)
 
         # STEP 3: RESPONSE ASSEMBLY 
         return jsonify({
