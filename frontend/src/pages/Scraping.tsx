@@ -13,6 +13,11 @@ const FALLBACK_SOURCES = [
   { source: 'Community Forums', region: 'BW', status: 'ONLINE', recordsPerMin: 92, failureRate: '1.2%' },
 ];
 
+const TEXT_COLUMN_NAMES = [
+  'text', 'text_raw', 'content', 'tweet', 'message', 'post',
+  'body', 'description', 'full_text', 'tweet_text', 'post_text',
+];
+
 const Scraping: React.FC = () => {
   const [socialHealth, setSocialHealth] = useState<SocialHealthStatus | null>(null);
   const [collections, setCollections] = useState<SocialCollection[]>([]);
@@ -28,6 +33,9 @@ const Scraping: React.FC = () => {
   const [csvRows, setCsvRows] = useState<SocialInputItem[]>([]);
   const [csvPreviewRows, setCsvPreviewRows] = useState<CsvPreviewRow[]>([]);
   const [csvFileName, setCsvFileName] = useState<string>('');
+  const [csvType, setCsvType] = useState<'data' | 'url_only' | ''>('');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [csvTextColumnDetected, setCsvTextColumnDetected] = useState<string>('');
 
   const refreshSocialData = useCallback(async () => {
     const [healthData, collectionData] = await Promise.all([
@@ -99,7 +107,14 @@ const Scraping: React.FC = () => {
         return;
       }
 
-      const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase());
+      const headers = parseCsvLine(lines[0]).map((header) => header.toLowerCase().trim());
+
+      // Detect CSV type: does it have a text/content column?
+      const hasTextColumn = headers.some((h) =>
+        TEXT_COLUMN_NAMES.includes(h)
+      );
+      const detectedTextCol = headers.find((h) => TEXT_COLUMN_NAMES.includes(h)) || '';
+
       const previewRows: CsvPreviewRow[] = lines.slice(1).map((line) => {
         const values = parseCsvLine(line);
         const rowMap: Record<string, string> = {};
@@ -110,9 +125,9 @@ const Scraping: React.FC = () => {
 
         const mapped = {
           url: rowMap.url || rowMap.post_url || '',
-          text: rowMap.text || rowMap.text_raw || '',
-          author: rowMap.author || rowMap.author_username || '',
-          created_at: rowMap.created_at || rowMap.created_at_utc || '',
+          text: rowMap.text || rowMap.text_raw || rowMap.content || rowMap.tweet || rowMap.message || rowMap.post || rowMap.body || rowMap.description || rowMap.full_text || '',
+          author: rowMap.author || rowMap.author_username || rowMap.user || rowMap.username || '',
+          created_at: rowMap.created_at || rowMap.created_at_utc || rowMap.date || rowMap.timestamp || '',
         };
 
         return {
@@ -131,7 +146,17 @@ const Scraping: React.FC = () => {
       setCsvRows(rows);
       setCsvPreviewRows(previewRows);
       setCsvFileName(file.name);
-      setStatusMessage(`Loaded ${rows.length} valid CSV records from ${file.name}.`);
+      setCsvFile(file);
+
+      if (hasTextColumn) {
+        setCsvType('data');
+        setCsvTextColumnDetected(detectedTextCol);
+        setStatusMessage(`Detected: DATA CSV — ${rows.length} rows with text column "${detectedTextCol}" from ${file.name}.`);
+      } else {
+        setCsvType('url_only');
+        setCsvTextColumnDetected('');
+        setStatusMessage(`Detected: URL CSV — ${rows.length} URLs from ${file.name}.`);
+      }
     } catch {
       setStatusError('Failed to parse CSV file.');
     }
@@ -141,6 +166,9 @@ const Scraping: React.FC = () => {
     setCsvRows([]);
     setCsvPreviewRows([]);
     setCsvFileName('');
+    setCsvType('');
+    setCsvFile(null);
+    setCsvTextColumnDetected('');
   };
 
   const handleCollect = async () => {
@@ -149,6 +177,21 @@ const Scraping: React.FC = () => {
     setStatusMessage('');
 
     try {
+      // Data CSV → upload file directly to backend for parsing & ingestion
+      if (csvType === 'data' && csvFile) {
+        const result = await sentimentApi.uploadCsvFile(csvFile);
+        if (result.error) {
+          setStatusError(result.error);
+          return;
+        }
+        setStatusMessage(`CSV ingested: ${result.count} records saved as ${result.collection_id}.`);
+        await refreshSocialData();
+        setSelectedCollectionId(result.collection_id);
+        clearCsv();
+        return;
+      }
+
+      // URL-only CSV or manual query → use existing collect endpoint
       const payload = {
         provider: provider || undefined,
         query: query || undefined,
@@ -241,6 +284,13 @@ const Scraping: React.FC = () => {
         recordsPerMin: collections[2]?.count || 0,
         failureRate: socialHealth.twikit_configured ? '1.1%' : '100%',
       },
+      {
+        source: 'CSV Upload',
+        region: 'LOCAL',
+        status: 'ONLINE',
+        recordsPerMin: 0,
+        failureRate: '0%',
+      },
     ];
   }, [socialHealth, collections]);
 
@@ -272,6 +322,43 @@ const Scraping: React.FC = () => {
 
         <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-4">
           <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Ingestion Control</h2>
+
+          {/* CSV Upload Zone */}
+          <div className="border border-dashed border-outline-variant/30 p-4 bg-surface-container-lowest">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <span className="material-symbols-outlined text-primary text-lg">upload_file</span>
+                <span className="font-headline text-[10px] font-bold uppercase tracking-widest">CSV Data Upload</span>
+              </div>
+              {csvType && (
+                <span className={`font-mono text-[10px] px-2 py-0.5 ${csvType === 'data' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
+                  {csvType === 'data' ? `DATA_CSV // COL: ${csvTextColumnDetected.toUpperCase()}` : 'URL_LIST_CSV'}
+                </span>
+              )}
+            </div>
+            <div className="flex items-center gap-3">
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={handleCsvFile}
+                className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 file:mr-2 file:border-0 file:bg-primary/10 file:text-primary file:px-2 file:py-1 flex-1"
+              />
+              {csvFileName && (
+                <button
+                  type="button"
+                  onClick={clearCsv}
+                  className="font-mono text-[10px] text-on-surface-variant hover:text-tertiary px-2 py-1 border border-outline-variant/20 transition-colors"
+                >
+                  CLEAR
+                </button>
+              )}
+            </div>
+            <p className="font-mono text-[9px] text-on-surface-variant mt-2">
+              Accepts data CSVs (with text/content column) or URL-only CSVs. Auto-detects column mapping.
+            </p>
+          </div>
+
+          {/* Query-based collection controls */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <input
               value={provider}
@@ -292,12 +379,7 @@ const Scraping: React.FC = () => {
               onChange={(e) => setMaxResults(Number(e.target.value))}
               className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
             />
-            <input
-              type="file"
-              accept=".csv,text/csv"
-              onChange={handleCsvFile}
-              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 file:mr-2 file:border-0 file:bg-primary/10 file:text-primary file:px-2 file:py-1"
-            />
+            <div /> {/* spacer */}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
             <select
@@ -326,9 +408,10 @@ const Scraping: React.FC = () => {
                 void handleCollect();
               }}
               disabled={actionLoading}
-              className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 disabled:opacity-60"
+              className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 disabled:opacity-60 flex items-center justify-center gap-2"
             >
-              Collect{csvRows.length ? ` (${csvRows.length} CSV)` : ''}
+              {actionLoading && <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>}
+              {csvType === 'data' ? `Ingest CSV (${csvRows.length} rows)` : csvRows.length ? `Collect (${csvRows.length} URLs)` : 'Collect'}
             </button>
             <button
               type="button"
@@ -341,20 +424,8 @@ const Scraping: React.FC = () => {
               Clean Selected
             </button>
           </div>
-          {(csvFileName || statusMessage || statusError) && (
+          {(statusMessage || statusError) && (
             <div className="space-y-1">
-              {csvFileName && (
-                <div className="flex items-center justify-between">
-                  <p className="font-mono text-[10px] text-primary">CSV: {csvFileName}</p>
-                  <button
-                    type="button"
-                    onClick={clearCsv}
-                    className="font-mono text-[10px] text-on-surface-variant hover:text-on-surface"
-                  >
-                    CLEAR
-                  </button>
-                </div>
-              )}
               {statusMessage && <p className="font-mono text-[10px] text-secondary">{statusMessage}</p>}
               {statusError && <p className="font-mono text-[10px] text-tertiary">{statusError}</p>}
             </div>
@@ -364,7 +435,13 @@ const Scraping: React.FC = () => {
         {csvPreviewRows.length > 0 && (
           <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-3">
             <div className="flex items-center justify-between">
-              <h2 className="font-headline text-xs font-bold uppercase tracking-widest">CSV Preview</h2>
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 ${csvType === 'data' ? 'bg-secondary' : 'bg-primary'}`}></span>
+                CSV Preview
+                <span className={`font-mono text-[9px] ml-2 px-1.5 py-0.5 ${csvType === 'data' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
+                  {csvType === 'data' ? 'DATA MODE' : 'URL MODE'}
+                </span>
+              </h2>
               <div className="flex gap-3 font-mono text-[10px]">
                 <span className="text-secondary">VALID: {csvRows.length}</span>
                 <span className="text-tertiary">INVALID: {invalidCsvCount}</span>
@@ -376,10 +453,10 @@ const Scraping: React.FC = () => {
                 <thead>
                   <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
                     <th className="pb-2 font-normal">Status</th>
-                    <th className="pb-2 font-normal">URL</th>
-                    <th className="pb-2 font-normal">Text</th>
+                    {csvType === 'data' && <th className="pb-2 font-normal">Text</th>}
+                    {csvType !== 'data' && <th className="pb-2 font-normal">URL</th>}
                     <th className="pb-2 font-normal">Author</th>
-                    <th className="pb-2 font-normal">Created</th>
+                    <th className="pb-2 font-normal">Date</th>
                   </tr>
                 </thead>
                 <tbody className="font-mono text-[10px]">
@@ -388,8 +465,12 @@ const Scraping: React.FC = () => {
                       <td className={`py-2 ${row.isValid ? 'text-secondary' : 'text-tertiary'}`}>
                         {row.isValid ? 'VALID' : 'INVALID'}
                       </td>
-                      <td className="py-2 text-primary max-w-[240px] truncate">{row.url || '--'}</td>
-                      <td className="py-2 max-w-[360px] truncate">{row.text || '--'}</td>
+                      {csvType === 'data' && (
+                        <td className="py-2 max-w-[400px] truncate">{row.text || '--'}</td>
+                      )}
+                      {csvType !== 'data' && (
+                        <td className="py-2 text-primary max-w-[300px] truncate">{row.url || '--'}</td>
+                      )}
                       <td className="py-2">{row.author || '--'}</td>
                       <td className="py-2">{row.created_at || '--'}</td>
                     </tr>
@@ -416,12 +497,12 @@ const Scraping: React.FC = () => {
             <p className="text-3xl font-headline font-bold text-primary mt-2">{activeSources || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Ingested / Min</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Total Ingested</p>
             <p className="text-3xl font-headline font-bold text-secondary mt-2">{totalIngested || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Queue Depth</p>
-            <p className="text-3xl font-headline font-bold text-on-surface mt-2">{collections.length ? `${collections.length} B` : '--'}</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Collections</p>
+            <p className="text-3xl font-headline font-bold text-on-surface mt-2">{collections.length ? `${collections.length}` : '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
             <p className="font-mono text-[10px] uppercase text-on-surface-variant">Provider Default</p>
@@ -474,11 +555,11 @@ const Scraping: React.FC = () => {
               </div>
               <div>
                 <div className="flex justify-between font-mono text-[10px] mb-1">
-                  <span>RSS_POLLING_POOL</span>
-                  <span className="text-primary">67%</span>
+                  <span>CSV_UPLOAD_PIPELINE</span>
+                  <span className="text-primary">100%</span>
                 </div>
                 <div className="h-1 bg-surface-container-highest">
-                  <div className="h-1 bg-primary" style={{ width: '67%' }}></div>
+                  <div className="h-1 bg-primary" style={{ width: '100%' }}></div>
                 </div>
               </div>
             </div>
