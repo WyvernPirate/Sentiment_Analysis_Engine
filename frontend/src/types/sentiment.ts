@@ -85,3 +85,61 @@ export interface SocialCleanResponse {
     report?: Record<string, unknown>;
     error?: string;
 }
+
+// --- Batch Analysis Types ---
+
+export interface AnalyzedRow {
+    row_index: number;
+    text: string;
+    sentiment: string;
+    confidence: number;
+    model_used: string;
+    trigger_words: {
+        positive: string[];
+        negative: string[];
+    };
+    political_words: Array<{ term: string; meaning: string }>;
+    entities: Array<{ entity: string; type: string }>;
+    meta: {
+        author: string;
+        date: string;
+        source: string;
+        url: string;
+    };
+}
+
+export interface AggregateStats {
+    total_rows: number;
+    sentiment_distribution: {
+        positive: number;
+        neutral: number;
+        negative: number;
+    };
+    avg_confidence: number;
+    top_trigger_words: Array<{ word: string; count: number; type: string }>;
+    top_entities: Array<{ entity: string; count: number }>;
+    model_used: string;
+}
+
+export interface BatchAnalysisResult {
+    job_id: string;
+    collection_id: string;
+    filename: string;
+    analyzed_at: string;
+    rows: AnalyzedRow[];
+    aggregate: AggregateStats;
+    error?: string;
+}
+
+export interface AnalysisJob {
+    job_id: string;
+    collection_id: string;
+    filename: string;
+    analyzed_at: string;
+    row_count: number;
+    sentiment_summary: {
+        positive: number;
+        neutral: number;
+        negative: number;
+    };
+}

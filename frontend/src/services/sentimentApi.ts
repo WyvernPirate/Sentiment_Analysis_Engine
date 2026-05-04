@@ -8,6 +8,8 @@ import {
     SocialInputItem,
     SocialCollectResponse,
     SocialCleanResponse,
+    BatchAnalysisResult,
+    AnalysisJob,
 } from '../types/sentiment';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -183,5 +185,109 @@ export const sentimentApi = {
                 error: 'Cleaning failed',
             };
         }
-    }
+    },
+
+    async uploadCsvFile(file: File): Promise<SocialCollectResponse> {
+        try {
+            const formData = new FormData();
+            formData.append('file', file);
+            const response = await fetch(`${API_BASE_URL}/social/upload-csv`, {
+                method: 'POST',
+                body: formData,
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                return {
+                    collection_id: '',
+                    source: 'csv',
+                    provider: 'csv_upload',
+                    query: '',
+                    count: 0,
+                    raw_file: '',
+                    error: data.error || 'CSV upload failed',
+                };
+            }
+            return data as SocialCollectResponse;
+        } catch {
+            return {
+                collection_id: '',
+                source: 'csv',
+                provider: 'csv_upload',
+                query: '',
+                count: 0,
+                raw_file: '',
+                error: 'CSV upload failed',
+            };
+        }
+    },
+
+    // --- Batch Analysis Methods ---
+
+    async runBatchAnalysis(collectionId: string): Promise<BatchAnalysisResult> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/analysis/run`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ collection_id: collectionId }),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                return {
+                    job_id: '',
+                    collection_id: collectionId,
+                    filename: '',
+                    analyzed_at: '',
+                    rows: [],
+                    aggregate: {
+                        total_rows: 0,
+                        sentiment_distribution: { positive: 0, neutral: 0, negative: 0 },
+                        avg_confidence: 0,
+                        top_trigger_words: [],
+                        top_entities: [],
+                        model_used: '',
+                    },
+                    error: data.error || 'Analysis failed',
+                };
+            }
+            return data as BatchAnalysisResult;
+        } catch {
+            return {
+                job_id: '',
+                collection_id: collectionId,
+                filename: '',
+                analyzed_at: '',
+                rows: [],
+                aggregate: {
+                    total_rows: 0,
+                    sentiment_distribution: { positive: 0, neutral: 0, negative: 0 },
+                    avg_confidence: 0,
+                    top_trigger_words: [],
+                    top_entities: [],
+                    model_used: '',
+                },
+                error: 'Analysis failed',
+            };
+        }
+    },
+
+    async listAnalysisJobs(limit = 20): Promise<AnalysisJob[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/analysis/jobs?limit=${limit}`);
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data.jobs) ? data.jobs : [];
+        } catch {
+            return [];
+        }
+    },
+
+    async getAnalysisJob(jobId: string): Promise<BatchAnalysisResult | null> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/analysis/jobs/${jobId}`);
+            if (!response.ok) return null;
+            return (await response.json()) as BatchAnalysisResult;
+        } catch {
+            return null;
+        }
+    },
 };
