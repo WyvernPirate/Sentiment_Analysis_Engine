@@ -20,7 +20,8 @@ class RawDataManager:
         target = os.path.join(root, day)
         os.makedirs(target, exist_ok=True)
         return target
-::
+
+
     # This method saves a batch of raw records to a JSONL file, along with metadata about the collection, and logs the collection in a separate log file.
     def save_raw_batch(self, source: str, query: str, records: List[Dict], run_meta: Optional[Dict] = None) -> Dict:
         timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
