@@ -147,7 +147,7 @@ class PoliticalEntityService:
                 if not candidate:
                     continue
 
-                pattern = r'\\b' + re.escape(candidate.lower()) + r'\\b'
+                pattern = r'\b' + re.escape(candidate.lower()) + r'\b'
                 if re.search(pattern, normalized_text):
                     key = (entity_name.lower(), entity_type)
                     if key in seen:
