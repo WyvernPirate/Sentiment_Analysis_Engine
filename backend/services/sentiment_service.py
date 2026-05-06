@@ -11,13 +11,16 @@ class SentimentService:
             'good', 'great', 'excellent', 'amazing', 'love', 'like', 'happy',
             'success', 'strong', 'improve', 'improved', 'progress', 'positive',
             'promising', 'growth', 'stable', 'effective', 'beneficial', 'advantage',
-            'prosperous', 'thriving', 'secure', 'peaceful', 'hopeful', 'inspiring'
+            'prosperous', 'thriving', 'secure', 'peaceful', 'hopeful', 'inspiring',
+            'leadership', 'visionary', 'lead', 'leading', 'win', 'winning'
         }
         self.negative_trigger_words = {
             'bad', 'terrible', 'awful', 'hate', 'dislike', 'sad', 'angry',
             'weak', 'worse', 'failed', 'failure', 'corrupt', 'negative',
             'stagnant', 'failing', 'crisis', 'decline', 'unstable', 'corrupt',
-            'poverty', 'protest', 'unemployment', 'debt', 'threat', 'danger'
+            'poverty', 'protest', 'unemployment', 'debt', 'threat', 'danger',
+            'slow', 'ineffective', 'lacks', 'lacking', 'losing', 'ground', 'poor',
+            'fail', 'inefficient', 'corrupt', 'scandal', 'unrest'
         }
 
     @property
@@ -64,68 +67,114 @@ class SentimentService:
             return "negative", min(0.8, 0.6 + (neg_count - pos_count) * 0.1), {'model': 'basic'}
         return "neutral", 0.5, {'model': 'basic'}
 
-    def extract_sentiment_trigger_words(self, text, target_sentiment=None):
+    def extract_sentiment_trigger_words(self, text, target_sentiment=None, exclude_words=None):
         """
-        Identifies words that influenced the sentiment by testing model sensitivity (LOO approach).
-        If target_sentiment is provided, it specifically looks for words influencing that label.
+        Identifies words that heavily influence the sentiment score.
+        Uses a Leave-One-Out (LOO) approach to measure how each word's absence changes the target score.
         """
+        if exclude_words is None:
+            exclude_words = set()
+        else:
+            exclude_words = {w.lower() for w in exclude_words}
+
+        if not text or len(text.strip()) == 0:
+            return {'positive': [], 'negative': []}
+
+        # Clean text for tokenization
         words = re.findall(r'\b\w+\b', text)
-        if not words or len(words) > 50: # Limit length to avoid explosion
-            return self.extract_basic_trigger_words(text)
+        if not words:
+            return {'positive': [], 'negative': []}
+            
+        # Limit length to avoid performance explosion on long texts
+        if len(words) > 80:
+            words = words[:80]
 
         try:
             if not self.pipeline:
                 return self.extract_basic_trigger_words(text)
 
-            # Get baseline prediction
+            # 1. Get baseline prediction for all labels
             baseline = self.pipeline(text, top_k=None)
             baseline_scores = {r['label']: r['score'] for r in baseline}
             
-            # If no target, use the most likely one
-            if not target_sentiment:
-                target_sentiment = max(baseline_scores, key=baseline_scores.get)
-            
-            # Handle label mapping (same as in analyze_english_sentiment)
+            # Map labels to our standard categories
             label_mapping = {
                 'LABEL_0': 'negative', 'LABEL_1': 'neutral', 'LABEL_2': 'positive',
-                'NEGATIVE': 'negative', 'NEUTRAL': 'neutral', 'POSITIVE': 'positive'
+                'NEGATIVE': 'negative', 'NEUTRAL': 'neutral', 'POSITIVE': 'positive',
+                'negative': 'negative', 'neutral': 'neutral', 'positive': 'positive'
             }
             
-            # Find the internal label for the target sentiment
-            target_label = next((k for k, v in label_mapping.items() if v == target_sentiment), target_sentiment)
-            baseline_score = baseline_scores.get(target_label, 0)
+            # Determine target sentiment if not provided
+            if not target_sentiment:
+                top_res = max(baseline, key=lambda x: x['score'])
+                target_sentiment = label_mapping.get(top_res['label'], 'neutral')
 
-            # Test each word (Leave-One-Out)
+            if target_sentiment == 'neutral':
+                # For neutral sentiment, we just return basic lexicon or nothing 
+                # as "influence" on neutral is harder to define clearly for a cloud
+                return self.extract_basic_trigger_words(text)
+
+            # Find all internal labels that map to our target sentiment
+            target_labels = [k for k, v in label_mapping.items() if v == target_sentiment]
+            if not target_labels:
+                return self.extract_basic_trigger_words(text)
+
+            # Baseline score is the sum of scores for all labels matching the target sentiment
+            baseline_score = sum(baseline_scores.get(lbl, 0) for lbl in target_labels)
+
+            # 2. Test each word's impact (Leave-One-Out)
             impacts = []
+            # Expanded stopwords to filter out common noise
+            skip_words = {
+                'the', 'and', 'for', 'was', 'with', 'this', 'that', 'are', 'were', 'been', 'has', 'have', 'had', 
+                'its', 'their', 'there', 'who', 'whom', 'which', 'what', 'where', 'when', 'how', 'why', 'can', 
+                'could', 'should', 'would', 'may', 'might', 'must', 'into', 'onto', 'upon', 'from', 'than', 'then', 
+                'else', 'will', 'very', 'only', 'just', 'more', 'most', 'some', 'many', 'much', 'such', 'both', 
+                'each', 'any', 'none', 'all', 'both', 'half', 'few', 'your', 'ours', 'theirs', 'being', 'those', 
+                'these', 'about', 'between', 'during', 'before', 'after', 'above', 'below', 'under', 'again', 
+                'further', 'once', 'once', 'here', 'there', 'when', 'where', 'why', 'how', 'all', 'any', 'both', 
+                'each', 'few', 'more', 'most', 'other', 'some', 'such', 'no', 'nor', 'not', 'only', 'own', 'same', 
+                'so', 'than', 'too', 'very', 'can', 'will', 'just', 'should', 'now', 'system'
+            }
+            
             for i in range(len(words)):
-                # Skip small common words to save time/noise
-                if len(words[i]) < 3: continue
+                word_lower = words[i].lower()
+                # Skip small words, stopwords, purely numeric tokens, or excluded words (entities)
+                if len(word_lower) < 3 or word_lower in skip_words or word_lower.isdigit() or word_lower in exclude_words:
+                    continue
                 
+                # Create text without this word
                 perturbed_text = " ".join(words[:i] + words[i+1:])
+                if not perturbed_text.strip():
+                    continue
+                    
                 p_res = self.pipeline(perturbed_text, top_k=None)
-                p_score = next((r['score'] for r in p_res if r['label'] == target_label), 0)
+                p_score = sum(r['score'] for r in p_res if r['label'] in target_labels)
                 
-                # Impact is how much the score DROPPED when word was removed
+                # Impact: how much the target sentiment score drops when word is removed
                 impact = baseline_score - p_score
-                if impact > 0.005: # Lowered threshold for more sensitivity
-                    impacts.append((words[i].lower(), impact))
+                
+                # We also consider if removing the word INCREASES the score (anti-trigger)
+                # but for a word cloud, we want the words that CONTRIBUTE to the score.
+                if impact > 0.001: # Very low threshold to catch more keywords
+                    impacts.append((words[i], impact))
 
-            # Sort by impact
+            # 3. Sort by impact and format results
             impacts.sort(key=lambda x: x[1], reverse=True)
             
-            # If no significant impacts found, fall back to basic lexicon matching
-            if not impacts:
-                return self.extract_basic_trigger_words(text)
+            # Take top 10 most influential words
+            top_words = [w for w, i in impacts[:10]]
             
-            # Split into pos/neg based on target sentiment
             res = {'positive': [], 'negative': []}
             if target_sentiment == 'positive':
-                res['positive'] = [w for w, i in impacts[:8]] # Show up to 8 words
+                res['positive'] = top_words
             elif target_sentiment == 'negative':
-                res['negative'] = [w for w, i in impacts[:8]]
-            else:
+                res['negative'] = top_words
+                
+            # If model found nothing, fallback to lexicon
+            if not any(res.values()):
                 return self.extract_basic_trigger_words(text)
-            
+                
             return res
 
         except Exception as e:
