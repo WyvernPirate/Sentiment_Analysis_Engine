@@ -114,7 +114,10 @@ const Scraping: React.FC = () => {
         TEXT_COLUMN_NAMES.includes(h)
       );
       const detectedTextCol = headers.find((h) => TEXT_COLUMN_NAMES.includes(h)) || '';
-      const isMessyScraper = !hasTextColumn && headers.some(h => h.includes('css-') || h.includes('r-'));
+      // Heuristic for messy scrapers (X or Facebook)
+      const isFacebook = headers.some(h => h.includes('x1i10') || h.includes('xdj'));
+      const isXMessy = !hasTextColumn && headers.some(h => h.includes('css-') || h.includes('r-'));
+      const isMessyScraper = isFacebook || isXMessy;
 
       const previewRows: CsvPreviewRow[] = lines.slice(1).map((line) => {
         const values = parseCsvLine(line);
@@ -128,15 +131,19 @@ const Scraping: React.FC = () => {
         let textVal = rowMap.text || rowMap.text_raw || rowMap.content || rowMap.tweet || rowMap.message || rowMap.post || rowMap.body || rowMap.description || rowMap.full_text || '';
         
         if (isMessyScraper && !textVal) {
-          // Merge columns 7-11 (approximate range for Instant Data Scraper text)
-          textVal = headers.slice(7, 12).map(h => rowMap[h]).filter(Boolean).join(' ');
+          // Heuristic: for FB we scan more columns, for X we scan 7-12
+          const searchRange = isFacebook ? headers.slice(3, 20) : headers.slice(7, 12);
+          textVal = searchRange
+            .map(h => rowMap[h])
+            .filter(v => v && !v.startsWith('http') && v.length > 2)
+            .join(' ');
         }
 
         const mapped = {
-          url: rowMap.url || rowMap.post_url || rowMap[headers[5]] || '',
+          url: rowMap.url || rowMap.post_url || (isFacebook ? rowMap[headers[0]] : rowMap[headers[5]]) || '',
           text: textVal,
-          author: rowMap.author || rowMap.author_username || rowMap.user || rowMap.username || rowMap[headers[2]] || '',
-          created_at: rowMap.created_at || rowMap.created_at_utc || rowMap.date || rowMap.timestamp || rowMap[headers[6]] || '',
+          author: rowMap.author || rowMap.author_username || rowMap.user || rowMap.username || (isFacebook ? rowMap[headers[1]] : rowMap[headers[2]]) || '',
+          created_at: rowMap.created_at || rowMap.created_at_utc || rowMap.date || rowMap.timestamp || '',
         };
 
         return {
@@ -160,15 +167,19 @@ const Scraping: React.FC = () => {
       if (hasTextColumn) {
         setCsvType('data');
         setCsvTextColumnDetected(detectedTextCol);
-        setStatusMessage(`Detected: DATA CSV — ${rows.length} rows with text column "${detectedTextCol}" from ${file.name}.`);
-      } else if (isMessyScraper) {
+        setStatusMessage(`DETECTED: DATA_MODE // ${rows.length} records // Text Column: "${detectedTextCol}"`);
+      } else if (isFacebook) {
         setCsvType('data');
-        setCsvTextColumnDetected('AUTO_REPAIR_FRAGMENTS');
-        setStatusMessage(`Detected: MESSY SCRAPER CSV — Auto-Repairing ${rows.length} rows from ${file.name}.`);
+        setCsvTextColumnDetected('REPAIR_FACEBOOK');
+        setStatusMessage(`DETECTED: MESSY_FACEBOOK_SCRAPER // AUTO_REPAIR ACTIVE // ${rows.length} records`);
+      } else if (isXMessy) {
+        setCsvType('data');
+        setCsvTextColumnDetected('REPAIR_X_SCRAPER');
+        setStatusMessage(`DETECTED: MESSY_X_SCRAPER // AUTO_REPAIR ACTIVE // ${rows.length} records`);
       } else {
         setCsvType('url_only');
         setCsvTextColumnDetected('');
-        setStatusMessage(`Detected: URL CSV — ${rows.length} URLs from ${file.name}.`);
+        setStatusMessage(`DETECTED: URL_LIST_MODE // ${rows.length} links found`);
       }
     } catch {
       setStatusError('Failed to parse CSV file.');
@@ -320,8 +331,11 @@ const Scraping: React.FC = () => {
       <div className="p-6 space-y-6">
         <div className="flex items-end justify-between border-b border-outline-variant/10 pb-4">
           <div>
-            <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Scraping Sources</h1>
-            <p className="text-on-surface-variant font-mono text-xs mt-2">DATA_COLLECTION_SYSTEM</p>
+            <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Ingestion Engine</h1>
+            <p className="text-on-surface-variant font-mono text-xs mt-2 flex items-center gap-2">
+              <span className="w-2 h-2 bg-secondary animate-pulse rounded-full"></span>
+              CORE_PIPELINE_ACTIVE // {activeSources} SOURCES_CONNECTED
+            </p>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -329,284 +343,339 @@ const Scraping: React.FC = () => {
               onClick={() => {
                 void refreshSocialData();
               }}
-              className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all"
+              className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all active:translate-y-0.5"
             >
               <span className="material-symbols-outlined text-sm">sync</span>
-              Resync Sources
+              Sync Data Lake
             </button>
           </div>
         </div>
 
-        <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-4">
-          <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Ingestion Control</h2>
-
-          {/* CSV Upload Zone */}
-          <div className="border border-dashed border-outline-variant/30 p-4 bg-surface-container-lowest">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <span className="material-symbols-outlined text-primary text-lg">upload_file</span>
-                <span className="font-headline text-[10px] font-bold uppercase tracking-widest">CSV Data Upload</span>
-              </div>
+        {/* Primary Controls: CSV Upload & Query */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <section className="lg:col-span-2 bg-surface-container-low border border-outline-variant/10 p-5 space-y-5">
+            <div className="flex items-center justify-between">
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
+                <span className="material-symbols-outlined text-sm">input</span>
+                Data Entry Portal
+              </h2>
               {csvType && (
-                <span className={`font-mono text-[10px] px-2 py-0.5 ${csvType === 'data' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
-                  {csvType === 'data' ? `DATA_CSV // COL: ${csvTextColumnDetected.toUpperCase()}` : 'URL_LIST_CSV'}
-                </span>
-              )}
-            </div>
-            <div className="flex items-center gap-3">
-              <input
-                type="file"
-                accept=".csv,text/csv"
-                onChange={handleCsvFile}
-                className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 file:mr-2 file:border-0 file:bg-primary/10 file:text-primary file:px-2 file:py-1 flex-1"
-              />
-              {csvFileName && (
-                <div className="flex items-center gap-4">
-                  <label className="flex items-center gap-2 cursor-pointer group">
-                    <input
-                      type="checkbox"
-                      checked={autoClean}
-                      onChange={(e) => setAutoClean(e.target.checked)}
-                      className="w-3 h-3 accent-primary"
-                    />
-                    <span className="font-mono text-[10px] text-on-surface-variant group-hover:text-secondary uppercase">Auto-Clean</span>
-                  </label>
-                  <button
-                    type="button"
-                    onClick={clearCsv}
-                    className="font-mono text-[10px] text-on-surface-variant hover:text-tertiary px-2 py-1 border border-outline-variant/20 transition-colors"
-                  >
-                    CLEAR
-                  </button>
+                <div className="flex items-center gap-2 animate-in fade-in slide-in-from-right-2">
+                  <span className={`font-mono text-[9px] px-2 py-0.5 border ${csvType === 'data' ? 'bg-secondary/10 border-secondary/30 text-secondary' : 'bg-primary/10 border-primary/30 text-primary'}`}>
+                    {csvType === 'data' ? `MODE: ${csvTextColumnDetected}` : 'MODE: URL_LIST'}
+                  </span>
+                  <button onClick={clearCsv} className="text-[9px] font-mono text-tertiary hover:underline">ABORT</button>
                 </div>
               )}
             </div>
-            <p className="font-mono text-[9px] text-on-surface-variant mt-2">
-              Accepts data CSVs (with text/content column) or URL-only CSVs. Auto-detects column mapping.
-            </p>
-          </div>
 
-          {/* Query-based collection controls */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <select
-              value={provider}
-              onChange={(e) => setProvider(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
-            >
-              <option value="">Provider: Default</option>
-              <option value="brightdata">Bright Data</option>
-              <option value="apify">Apify</option>
-              <option value="twikit">Twikit (X Scraper)</option>
-            </select>
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="query"
-              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
-            />
-            <input
-              type="number"
-              min={1}
-              value={maxResults}
-              onChange={(e) => setMaxResults(Number(e.target.value))}
-              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
-            />
-            <div /> {/* spacer */}
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <select
-              value={selectedCollectionId}
-              onChange={(e) => setSelectedCollectionId(e.target.value)}
-              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
-            >
-              <option value="">Select collection</option>
-              {collections.map((entry) => (
-                <option key={entry.collection_id} value={entry.collection_id}>
-                  {entry.collection_id}
-                </option>
-              ))}
-            </select>
-            <select
-              value={filterMode}
-              onChange={(e) => setFilterMode(e.target.value as 'relaxed' | 'strict')}
-              className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
-            >
-              <option value="relaxed">filter: relaxed</option>
-              <option value="strict">filter: strict</option>
-            </select>
-            <button
-              type="button"
-              onClick={() => {
-                void handleCollect();
-              }}
-              disabled={actionLoading}
-              className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 disabled:opacity-60 flex items-center justify-center gap-2"
-            >
-              {actionLoading && <span className="material-symbols-outlined text-sm animate-spin">progress_activity</span>}
-              {csvType === 'data' ? `Ingest CSV (${csvRows.length} rows)` : csvRows.length ? `Collect (${csvRows.length} URLs)` : 'Collect'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                void handleClean();
-              }}
-              disabled={actionLoading || !selectedCollectionId}
-              className="bg-surface-container-high text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 border-b-2 border-primary disabled:opacity-60"
-            >
-              Clean Selected
-            </button>
-          </div>
-          {(statusMessage || statusError) && (
-            <div className="space-y-1">
-              {statusMessage && <p className="font-mono text-[10px] text-secondary">{statusMessage}</p>}
-              {statusError && <p className="font-mono text-[10px] text-tertiary">{statusError}</p>}
-            </div>
-          )}
-        </section>
-
-        {csvPreviewRows.length > 0 && (
-          <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-headline text-xs font-bold uppercase tracking-widest flex items-center gap-2">
-                <span className={`w-1.5 h-1.5 ${csvType === 'data' ? 'bg-secondary' : 'bg-primary'}`}></span>
-                CSV Preview
-                <span className={`font-mono text-[9px] ml-2 px-1.5 py-0.5 ${csvType === 'data' ? 'bg-secondary/10 text-secondary' : 'bg-primary/10 text-primary'}`}>
-                  {csvType === 'data' ? 'DATA MODE' : 'URL MODE'}
-                </span>
-              </h2>
-              <div className="flex gap-3 font-mono text-[10px]">
-                <span className="text-secondary">VALID: {csvRows.length}</span>
-                <span className="text-tertiary">INVALID: {invalidCsvCount}</span>
-                <span className="text-on-surface-variant">TOTAL: {csvPreviewRows.length}</span>
+            {/* Drag & Drop style zone (simplified) */}
+            <div className={`border-2 border-dashed p-6 transition-colors ${csvFileName ? 'border-secondary/50 bg-secondary/5' : 'border-outline-variant/30 bg-surface-container-lowest'}`}>
+              <div className="flex flex-col items-center justify-center text-center space-y-3">
+                {!csvFileName ? (
+                  <>
+                    <span className="material-symbols-outlined text-4xl text-outline-variant/50">cloud_upload</span>
+                    <div>
+                      <p className="font-headline text-[11px] font-bold uppercase">Drop Social Data CSV Here</p>
+                      <p className="font-mono text-[9px] text-on-surface-variant mt-1">SUPPORTED: X (Instant Data), FB (Technical), Custom Headers</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept=".csv,text/csv"
+                      onChange={handleCsvFile}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
+                    <button className="bg-primary/10 text-primary text-[10px] font-bold px-4 py-1.5 border border-primary/20 pointer-events-none uppercase">Browse Local Files</button>
+                  </>
+                ) : (
+                  <div className="w-full flex items-center justify-between">
+                    <div className="flex items-center gap-4 text-left">
+                      <span className="material-symbols-outlined text-3xl text-secondary">description</span>
+                      <div>
+                        <p className="font-headline text-[11px] font-bold uppercase text-secondary">{csvFileName}</p>
+                        <p className="font-mono text-[9px] text-on-surface-variant">{csvRows.length} RECORDS_DETECTED // {csvType.toUpperCase()}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="flex items-center gap-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={autoClean}
+                          onChange={(e) => setAutoClean(e.target.checked)}
+                          className="w-3 h-3 accent-primary"
+                        />
+                        <span className="font-mono text-[10px] text-on-surface-variant group-hover:text-secondary uppercase">Auto-Filter</span>
+                      </label>
+                      <button
+                        onClick={() => void handleCollect()}
+                        disabled={actionLoading}
+                        className="bg-secondary text-on-secondary text-[10px] font-headline uppercase font-bold px-6 py-2 shadow-[0_4px_10px_rgba(var(--secondary-rgb),0.3)] hover:brightness-110 disabled:opacity-50 transition-all"
+                      >
+                        {actionLoading ? 'PROCESS...' : 'Commence Ingestion'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
-                    <th className="pb-2 font-normal">Status</th>
-                    {csvType === 'data' && <th className="pb-2 font-normal">Text</th>}
-                    {csvType !== 'data' && <th className="pb-2 font-normal">URL</th>}
-                    <th className="pb-2 font-normal">Author</th>
-                    <th className="pb-2 font-normal">Date</th>
-                  </tr>
-                </thead>
-                <tbody className="font-mono text-[10px]">
-                  {previewRows.map((row, idx) => (
-                    <tr key={`${row.url || row.text || 'row'}-${idx}`} className="border-b border-outline-variant/10">
-                      <td className={`py-2 ${row.isValid ? 'text-secondary' : 'text-tertiary'}`}>
-                        {row.isValid ? 'VALID' : 'INVALID'}
-                      </td>
-                      {csvType === 'data' && (
-                        <td className="py-2 max-w-[400px] truncate">{row.text || '--'}</td>
-                      )}
-                      {csvType !== 'data' && (
-                        <td className="py-2 text-primary max-w-[300px] truncate">{row.url || '--'}</td>
-                      )}
-                      <td className="py-2">{row.author || '--'}</td>
-                      <td className="py-2">{row.created_at || '--'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <p className="font-mono text-[9px] uppercase text-on-surface-variant">Remote Collection Query</p>
+                <div className="flex gap-2">
+                  <input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Search query..."
+                    className="flex-1 bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:border-primary outline-none transition-colors"
+                  />
+                  <select
+                    value={provider}
+                    onChange={(e) => setProvider(e.target.value)}
+                    className="bg-surface-container-lowest border border-outline-variant/20 text-[10px] font-mono px-2 py-1 outline-none"
+                  >
+                    <option value="">AUTO_SELECT</option>
+                    <option value="brightdata">BRIGHT_DATA</option>
+                    <option value="apify">APIFY_JS</option>
+                    <option value="twikit">TWIKIT_BW</option>
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2 text-right">
+                <p className="font-mono text-[9px] uppercase text-on-surface-variant">Batch Size</p>
+                <div className="flex items-center justify-end gap-3">
+                  <input
+                    type="range"
+                    min="10"
+                    max="500"
+                    step="10"
+                    value={maxResults}
+                    onChange={(e) => setMaxResults(Number(e.target.value))}
+                    className="w-32 accent-primary h-1 bg-outline-variant/20 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <span className="font-mono text-xs text-primary font-bold">{maxResults}</span>
+                  <button 
+                    onClick={() => void handleCollect()}
+                    disabled={actionLoading || !!csvFileName}
+                    className="bg-primary/10 text-primary text-[10px] font-bold px-4 py-2 border border-primary/20 hover:bg-primary/20 disabled:hidden uppercase"
+                  >
+                    Fetch Remote
+                  </button>
+                </div>
+              </div>
             </div>
-            {csvPreviewRows.length > previewRows.length && (
-              <p className="font-mono text-[10px] text-on-surface-variant">
-                Showing {previewRows.length} of {csvPreviewRows.length} parsed rows.
-              </p>
+            
+            {statusMessage && (
+              <div className="bg-secondary/5 border-l-2 border-secondary p-2 animate-in slide-in-from-left-2">
+                <p className="font-mono text-[10px] text-secondary flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[12px]">check_circle</span>
+                  {statusMessage}
+                </p>
+              </div>
             )}
-            {invalidCsvCount > 0 && (
-              <p className="font-mono text-[10px] text-tertiary">
-                Invalid rows are skipped automatically (must contain at least URL or text).
-              </p>
+            {statusError && (
+              <div className="bg-tertiary/5 border-l-2 border-tertiary p-2 animate-in slide-in-from-left-2">
+                <p className="font-mono text-[10px] text-tertiary flex items-center gap-2">
+                  <span className="material-symbols-outlined text-[12px]">error</span>
+                  {statusError}
+                </p>
+              </div>
             )}
+          </section>
+
+          {/* Right Column: Collection Status & Metrics */}
+          <section className="space-y-6">
+            <div className="bg-surface-container-low border border-outline-variant/10 p-4">
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface mb-4">Pipeline Metrics</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                  <span className="font-mono text-[10px] text-on-surface-variant">TOTAL_RECORDS</span>
+                  <span className="text-xl font-headline font-bold text-secondary">{totalIngested.toLocaleString()}</span>
+                </div>
+                <div className="flex items-center justify-between border-b border-outline-variant/5 pb-2">
+                  <span className="font-mono text-[10px] text-on-surface-variant">DATA_LAKE_SIZE</span>
+                  <span className="text-xl font-headline font-bold text-on-surface">{collections.length} BATCHES</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="font-mono text-[10px] text-on-surface-variant">HEALTH_STATUS</span>
+                  <span className="font-mono text-[10px] text-secondary bg-secondary/10 px-2 py-0.5 rounded">OPTIMAL</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="bg-surface-container-lowest border border-outline-variant/20 p-4 h-[250px] overflow-hidden flex flex-col">
+              <div className="flex items-center justify-between mb-3 border-b border-outline-variant/10 pb-2">
+                <h3 className="font-mono text-[10px] font-bold text-primary uppercase">System Terminal</h3>
+                <span className="text-[10px] font-mono text-outline-variant/50 animate-pulse italic">LISTENING...</span>
+              </div>
+              <div className="flex-1 space-y-2 font-mono text-[9px] overflow-y-auto scrollbar-hide">
+                {recentEvents.map((evt, i) => (
+                  <p key={i} className={`${i === 0 ? 'text-secondary font-bold' : 'text-on-surface-variant opacity-70'}`}>
+                    <span className="text-outline-variant/40 mr-2">[{new Date().toLocaleDateString()}]</span>
+                    {evt}
+                  </p>
+                ))}
+                {loading && <p className="text-primary animate-pulse underline italic">{">>>"} FETCHING_REMOTE_ASSETS...</p>}
+                <p className="text-outline-variant/30 italic mt-4">// END OF LOG // TERMINAL READY</p>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* Data Lake View (Collections) */}
+        <section className="bg-surface-container-low border border-outline-variant/10 p-5">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Data Lake Explorer</h2>
+              <p className="font-mono text-[9px] text-on-surface-variant mt-1 italic">STORAGE_BUCKET: /data/raw_collections/*.json</p>
+            </div>
+            <div className="flex gap-3">
+               <select
+                  value={selectedCollectionId}
+                  onChange={(e) => setSelectedCollectionId(e.target.value)}
+                  className="bg-surface-container-lowest border border-outline-variant/20 text-[10px] font-mono px-3 py-1 outline-none min-w-[200px]"
+                >
+                  <option value="">Filter by batch ID...</option>
+                  {collections.map((entry) => (
+                    <option key={entry.collection_id} value={entry.collection_id}>
+                      {entry.collection_id} ({entry.count} recs)
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => void handleClean()}
+                  disabled={!selectedCollectionId || actionLoading}
+                  className="bg-surface-bright border border-primary/30 text-primary text-[10px] font-bold px-4 py-1 flex items-center gap-2 hover:bg-primary/10 disabled:opacity-40 transition-all active:scale-95"
+                >
+                  <span className="material-symbols-outlined text-sm">cleaning_services</span>
+                  RUN CLEANER
+                </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {collections.map((col) => (
+              <div 
+                key={col.collection_id} 
+                onClick={() => setSelectedCollectionId(col.collection_id)}
+                className={`p-4 border transition-all cursor-pointer group ${selectedCollectionId === col.collection_id ? 'bg-primary/5 border-primary/50' : 'bg-surface-container-lowest border-outline-variant/10 hover:border-outline-variant/30'}`}
+              >
+                <div className="flex justify-between items-start mb-3">
+                  <div className={`p-1.5 rounded bg-surface-container-high group-hover:bg-surface-bright transition-colors`}>
+                    <span className="material-symbols-outlined text-lg text-primary">database</span>
+                  </div>
+                  <span className="font-mono text-[10px] text-secondary font-bold bg-secondary/10 px-2 py-0.5 rounded">
+                    {col.count} ITEMS
+                  </span>
+                </div>
+                <h4 className="font-mono text-[11px] font-bold text-on-surface mb-1 truncate" title={col.collection_id}>
+                  {col.collection_id}
+                </h4>
+                <div className="space-y-1.5 opacity-70 group-hover:opacity-100 transition-opacity">
+                   <div className="flex items-center gap-2 font-mono text-[9px]">
+                    <span className="material-symbols-outlined text-[10px]">search</span>
+                    <span className="truncate">{col.query || 'NO_QUERY'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[9px]">
+                    <span className="material-symbols-outlined text-[10px]">calendar_today</span>
+                    <span>{new Date(col.collected_at_utc).toLocaleString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2 font-mono text-[9px]">
+                    <span className="material-symbols-outlined text-[10px]">source</span>
+                    <span className="uppercase text-primary">{col.source}</span>
+                  </div>
+                </div>
+                {selectedCollectionId === col.collection_id && (
+                  <div className="mt-4 pt-3 border-t border-primary/20 flex justify-end">
+                    <span className="font-headline text-[9px] font-bold text-primary uppercase flex items-center gap-1">
+                      SELECTED <span className="material-symbols-outlined text-xs">check</span>
+                    </span>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </section>
+
+        {/* CSV Preview Modal (Conditional) */}
+        {csvPreviewRows.length > 0 && (
+          <section className="bg-surface-container-low border border-outline-variant/10 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4">
+             <div className="flex items-center justify-between border-b border-outline-variant/10 pb-3">
+                <div className="flex items-center gap-3">
+                   <span className="material-symbols-outlined text-secondary">preview</span>
+                   <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Data Preview Buffer</h2>
+                </div>
+                <div className="flex gap-4 font-mono text-[10px]">
+                  <span className="text-secondary bg-secondary/10 px-2 py-0.5">VALID: {csvRows.length}</span>
+                  <span className="text-tertiary bg-tertiary/10 px-2 py-0.5">FILTERED: {invalidCsvCount}</span>
+                  <span className="text-on-surface-variant border border-outline-variant/20 px-2 py-0.5">TOTAL: {csvPreviewRows.length}</span>
+                </div>
+             </div>
+             <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
+                      <th className="pb-3 font-normal">Buffer_ID</th>
+                      <th className="pb-3 font-normal">Content_Stream</th>
+                      <th className="pb-3 font-normal">Source_Handle</th>
+                      <th className="pb-3 font-normal">Timestamp_ISO</th>
+                      <th className="pb-3 font-normal text-right">Integrity</th>
+                    </tr>
+                  </thead>
+                  <tbody className="font-mono text-[10px]">
+                    {csvPreviewRows.slice(0, 10).map((row, idx) => (
+                      <tr key={idx} className="border-b border-outline-variant/5 hover:bg-surface-container-highest transition-colors">
+                        <td className="py-3 text-outline-variant/50">#{idx + 1}</td>
+                        <td className="py-3 max-w-[500px] truncate pr-8">{row.text || <span className="text-tertiary font-bold italic">[URL_ONLY_STREAM]</span>}</td>
+                        <td className="py-3 text-secondary truncate max-w-[150px]">{row.author || 'ANONYMOUS'}</td>
+                        <td className="py-3 text-on-surface-variant">{row.created_at || 'NO_DATE'}</td>
+                        <td className={`py-3 text-right font-bold ${row.isValid ? 'text-secondary' : 'text-tertiary animate-pulse'}`}>
+                          {row.isValid ? 'OK' : 'ERR:MISSING_DATA'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+             </div>
+             <p className="font-mono text-[9px] text-outline-variant/50 italic text-right">* Previewing first 10 buffer segments. All valid records will be committed on ingestion.</p>
           </section>
         )}
 
-        <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Active Sources</p>
-            <p className="text-3xl font-headline font-bold text-primary mt-2">{activeSources || '--'}</p>
-          </div>
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Total Ingested</p>
-            <p className="text-3xl font-headline font-bold text-secondary mt-2">{totalIngested || '--'}</p>
-          </div>
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Collections</p>
-            <p className="text-3xl font-headline font-bold text-on-surface mt-2">{collections.length ? `${collections.length}` : '--'}</p>
-          </div>
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Provider Default</p>
-            <p className="text-3xl font-headline font-bold text-tertiary mt-2">{socialHealth?.provider_default || '--'}</p>
-          </div>
-        </section>
-
         <section className="bg-surface-container-low border border-outline-variant/10 p-4">
-          <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Source Health Matrix</h2>
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Global Provider Status</h2>
+            <div className="flex items-center gap-4 font-mono text-[9px]">
+               <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full"></span> NOMINAL</div>
+               <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-tertiary rounded-full"></span> OFFLINE</div>
+            </div>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full border-collapse">
               <thead>
                 <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
-                  <th className="pb-2 font-normal">Source</th>
+                  <th className="pb-2 font-normal">Source_Node</th>
                   <th className="pb-2 font-normal text-right">Region</th>
-                  <th className="pb-2 font-normal text-right">Status</th>
-                  <th className="pb-2 font-normal text-right">Records / Min</th>
-                  <th className="pb-2 font-normal text-right">Failure Rate</th>
+                  <th className="pb-2 font-normal text-right">Vector_Status</th>
+                  <th className="pb-2 font-normal text-right">Ingestion_Rate</th>
+                  <th className="pb-2 font-normal text-right">Error_Delta</th>
                 </tr>
               </thead>
               <tbody className="font-mono text-[10px]">
                 {sourceRows.map((row) => (
-                  <tr key={row.source} className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors">
-                    <td className="py-3 text-primary">{row.source}</td>
-                    <td className="py-3 text-right">{row.region}</td>
-                    <td className={`py-3 text-right ${row.status === 'ONLINE' ? 'text-secondary' : 'text-tertiary'}`}>
-                      {row.status}
+                  <tr key={row.source} className="border-b border-outline-variant/5 hover:bg-surface-container-high transition-colors group">
+                    <td className="py-4 text-primary font-bold">{row.source}</td>
+                    <td className="py-4 text-right text-on-surface-variant">{row.region}</td>
+                    <td className={`py-4 text-right font-mono font-bold ${row.status === 'ONLINE' ? 'text-secondary' : 'text-tertiary'}`}>
+                      {row.status === 'ONLINE' ? 'ACTIVE_SCAN' : 'AUTH_FAILED'}
                     </td>
-                    <td className="py-3 text-right">{row.recordsPerMin}</td>
-                    <td className="py-3 text-right">{row.failureRate}</td>
+                    <td className="py-4 text-right font-mono">{row.recordsPerMin} R/min</td>
+                    <td className="py-4 text-right font-mono text-outline-variant/50 group-hover:text-on-surface transition-colors">{row.failureRate}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <h3 className="font-headline text-xs font-bold uppercase tracking-widest mb-3">Collector Throughput</h3>
-            <div className="space-y-3">
-              <div>
-                <div className="flex justify-between font-mono text-[10px] mb-1">
-                  <span>X_STREAM_CLUSTER</span>
-                  <span className="text-secondary">92%</span>
-                </div>
-                <div className="h-1 bg-surface-container-highest">
-                  <div className="h-1 bg-secondary" style={{ width: '92%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between font-mono text-[10px] mb-1">
-                  <span>CSV_UPLOAD_PIPELINE</span>
-                  <span className="text-primary">100%</span>
-                </div>
-                <div className="h-1 bg-surface-container-highest">
-                  <div className="h-1 bg-primary" style={{ width: '100%' }}></div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <h3 className="font-headline text-xs font-bold uppercase tracking-widest mb-3">Recent Events</h3>
-            <div className="space-y-2 font-mono text-[10px]">
-              <p className="text-secondary">{recentEvents[0]}</p>
-              <p className="text-tertiary">{recentEvents[1] || 'NO_RECENT_EVENT'}</p>
-              <p className="text-on-surface-variant">{recentEvents[2] || 'NO_RECENT_EVENT'}</p>
-            </div>
-          </div>
-        </section>
-        {loading && <p className="text-on-surface-variant font-mono text-[10px]">SYNCING_SOURCES...</p>}
       </div>
     </div>
   );
