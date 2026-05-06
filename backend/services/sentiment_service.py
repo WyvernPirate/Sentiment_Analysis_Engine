@@ -39,7 +39,6 @@ class SentimentService:
         try:
             if self.pipeline:
                 result = self.pipeline(text)
-                # Handle label variations from different transformer versions
                 label_mapping = {
                     'LABEL_0': 'negative', 'LABEL_1': 'neutral', 'LABEL_2': 'positive',
                     'NEGATIVE': 'negative', 'NEUTRAL': 'neutral', 'POSITIVE': 'positive'
@@ -50,8 +49,32 @@ class SentimentService:
                 }
         except Exception:
             pass
-        # Fall back to basic sentiment if transformer unavailable
         return self.analyze_basic_sentiment(text)
+
+    def analyze_english_sentiment_batch(self, texts: List[str]) -> List[Tuple[str, float, Dict]]:
+        """Process a list of texts in one go for much better performance."""
+        try:
+            if self.pipeline:
+                # Transformers pipeline handles lists efficiently
+                results = self.pipeline(texts, batch_size=8) # Small batch size for safety
+                label_mapping = {
+                    'LABEL_0': 'negative', 'LABEL_1': 'neutral', 'LABEL_2': 'positive',
+                    'NEGATIVE': 'negative', 'NEUTRAL': 'neutral', 'POSITIVE': 'positive'
+                }
+                
+                output = []
+                for res in results:
+                    sentiment = label_mapping.get(res['label'], res['label'].lower())
+                    output.append((sentiment, res['score'], {
+                        'model': 'cardiffnlp/twitter-roberta-base-sentiment-latest'
+                    }))
+                return output
+        except Exception as e:
+            print(f"Batch analysis failed: {e}")
+            pass
+            
+        # Fallback to individual basic analysis if batching fails
+        return [self.analyze_basic_sentiment(t) for t in texts]
 
     def analyze_basic_sentiment(self, text):
         positive_words = self.positive_trigger_words
@@ -181,21 +204,28 @@ class SentimentService:
             print(f"Model-aware extraction failed: {e}")
             return self.extract_basic_trigger_words(text)
 
-    def extract_basic_trigger_words(self, text):
+    def extract_basic_trigger_words(self, text, exclude_words=None):
         """Fallback to lexicon-based extraction."""
+        if exclude_words is None:
+            exclude_words = set()
+        else:
+            exclude_words = {w.lower() for w in exclude_words}
+
         words = [match.group(0).lower() for match in re.finditer(r'\b\w+\b', text)]
         positive = []
         negative = []
-        seen_positive = set()
-        seen_negative = set()
+        seen = set()
 
         for word in words:
-            if word in self.positive_trigger_words and word not in seen_positive:
-                seen_positive.add(word)
+            if word in seen or word in exclude_words or len(word) < 3:
+                continue
+                
+            if word in self.positive_trigger_words:
                 positive.append(word)
-            if word in self.negative_trigger_words and word not in seen_negative:
-                seen_negative.add(word)
+                seen.add(word)
+            elif word in self.negative_trigger_words:
                 negative.append(word)
+                seen.add(word)
 
         return {
             'positive': positive,
