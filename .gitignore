@@ -67,4 +67,5 @@ logs/
 .vs/
 *.tmp
 
+scratch/
 

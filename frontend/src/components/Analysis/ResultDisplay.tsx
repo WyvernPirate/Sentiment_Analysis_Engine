@@ -77,7 +77,7 @@ const ResultDisplay: React.FC<ResultDisplayProps> = ({ result, loading }) => {
 
           {(result.sentiment_words.positive.length > 0 || result.sentiment_words.negative.length > 0) && (
             <div style={{ marginBottom: '1rem' }}>
-              <strong>Sentiment Trigger Words:</strong>
+              <strong>Trigger Words:</strong>
               <div style={{ marginTop: '0.5rem' }}>
                 {result.sentiment_words.positive.map((word) => (
                   <span

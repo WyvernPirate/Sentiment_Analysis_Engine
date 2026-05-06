@@ -1,7 +1,8 @@
-# This module defines the Flask Blueprint for social media data collection and cleaning endpoints.
+import os
 from flask import Blueprint, jsonify, request
 
 from config import Config
+from services.csv_ingest_service import csv_ingest_service
 from services.data_cleaner_service import data_cleaner_service
 from services.raw_data_manager import raw_data_manager
 from services.social_collector_service import social_collector_service
@@ -19,7 +20,7 @@ def health():
             'apify_configured': bool(Config.APIFY_API_TOKEN and Config.APIFY_ACTOR_ID),
             'twikit_configured': bool(
                 (Config.TWIKIT_USERNAME and Config.TWIKIT_PASSWORD)
-                or Config.TWIKIT_COOKIES_PATH
+                or (Config.TWIKIT_COOKIES_PATH and os.path.exists(Config.TWIKIT_COOKIES_PATH))
             )
         }
     )
@@ -135,5 +136,76 @@ def clean():
                 'report': report
             }
         )
+    except Exception as exc:
+        return jsonify({'error': str(exc)}), 500
+
+
+@social_bp.route('/upload-csv', methods=['POST'])
+def upload_csv():
+    """Accept a CSV file containing social post data and ingest it as a raw batch."""
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided. Send a CSV file as multipart/form-data with key "file".'}), 400
+
+        file = request.files['file']
+        if not file.filename:
+            return jsonify({'error': 'Empty filename'}), 400
+
+        filename = file.filename
+        if not filename.lower().endswith('.csv'):
+            return jsonify({'error': 'Only CSV files are accepted'}), 400
+
+        file_content = file.read().decode('utf-8', errors='replace')
+        filter_mode = request.form.get('filter_mode') # Check if user wants auto-clean
+
+        parsed = csv_ingest_service.parse_csv(file_content, filename)
+        records = parsed.get('records', [])
+
+        if not records:
+            return jsonify({'error': 'No valid text rows found in CSV'}), 400
+
+        # Perform Auto-Cleaning if requested
+        was_cleaned = False
+        cleaning_report = None
+        if filter_mode in ('relaxed', 'strict'):
+            records, cleaning_report = data_cleaner_service.clean_records(records, filter_mode=filter_mode)
+            was_cleaned = True
+
+        log_entry = raw_data_manager.save_raw_batch(
+            source='csv',
+            query=parsed.get('query', ''),
+            records=records,
+            run_meta={
+                **parsed.get('meta', {}),
+                'auto_cleaned': was_cleaned,
+                'cleaning_report': cleaning_report
+            }
+        )
+
+        # Build preview (same shape as /collect)
+        preview = []
+        for record in records[:5]:
+            preview.append({
+                'source_post_id': record.get('source_post_id', ''),
+                'author_username': record.get('author_username', ''),
+                'created_at_utc': record.get('created_at_utc', ''),
+                'post_url': record.get('post_url', ''),
+                'text_raw': (record.get('text_raw', '') or '')[:220],
+                'public_metrics': record.get('public_metrics', {}),
+            })
+
+        return jsonify({
+            'collection_id': log_entry['collection_id'],
+            'source': 'csv',
+            'provider': 'csv_upload',
+            'query': parsed.get('query', ''),
+            'count': parsed.get('count', 0),
+            'raw_file': log_entry['raw_file'],
+            'meta': parsed.get('meta', {}),
+            'records_preview': preview,
+        })
+
+    except ValueError as exc:
+        return jsonify({'error': str(exc)}), 400
     except Exception as exc:
         return jsonify({'error': str(exc)}), 500

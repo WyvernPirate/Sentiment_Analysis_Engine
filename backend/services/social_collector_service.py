@@ -1,4 +1,7 @@
-# this module is responsible for collecting social media posts from X using the Twitter API v2.
+import json
+import asyncio
+import os
+import re
 from datetime import datetime
 from typing import Dict, List, Optional
 
@@ -13,7 +16,6 @@ from config import Config
 from services.lexicon_service import lexicon_service
 from services.political_entity_service import political_entity_service
 
-#  This function builds a default query using political keywords and hashtags from config 
 class SocialCollectorService:
     APIFY_RUNS_URL_TEMPLATE = 'https://api.apify.com/v2/acts/{actor_id}/runs'
     APIFY_DATASET_ITEMS_URL_TEMPLATE = 'https://api.apify.com/v2/datasets/{dataset_id}/items'
@@ -48,7 +50,7 @@ class SocialCollectorService:
             token = token[7:].strip()
         return token
 
-    # This function constructs a default query string for collecting relevant posts
+    # This function constructs a default query string for collecting relavent posts
     def _build_default_query(self) -> str:
         return self._build_query_from_terms(self._build_dynamic_search_terms())
 
@@ -293,11 +295,21 @@ class SocialCollectorService:
 
         # Twikit handles cookie reuse when cookies_file exists.
         await client.login(**login_kwargs)
+        
+        # Explicitly save cookies after login to ensure session persistence
+        try:
+            client.save_cookies(cookies_path)
+        except Exception:
+            pass
 
         safe_max = max(10, min(int(max_results), 100))
         active_query = (query or '').strip() or self._build_default_query()
 
-        tweets_page = await client.search_tweet(active_query, 'Latest')
+        # Perform the search
+        try:
+            tweets_page = await client.search_tweet(active_query, 'Latest')
+        except Exception as e:
+            raise RuntimeError(f'Twikit search failed: {str(e)}')
 
         tweets = []
         try:
