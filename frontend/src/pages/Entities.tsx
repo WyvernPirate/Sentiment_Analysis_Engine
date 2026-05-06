@@ -12,33 +12,67 @@ const FALLBACK_ENTITIES = [
 const Entities: React.FC = () => {
   const [apiEntities, setApiEntities] = useState<PoliticalEntity[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [newEntity, setNewEntity] = useState({ entity: '', type: 'PARTY', full_name: '', description: '' });
+
+  const loadEntities = async () => {
+    setLoading(true);
+    try {
+      const entities = await sentimentApi.listPoliticalEntities();
+      setApiEntities(entities);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadEntities = async () => {
-      try {
-        const entities = await sentimentApi.listPoliticalEntities();
-        setApiEntities(entities);
-      } finally {
-        setLoading(false);
-      }
-    };
-
     void loadEntities();
   }, []);
 
+  const filteredEntities = useMemo(() => {
+    return apiEntities.filter(ent => 
+      ent.entity.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      ent.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  }, [apiEntities, searchTerm]);
+
   const tableRows = useMemo(() => {
-    if (!apiEntities.length) {
-      return FALLBACK_ENTITIES;
+    if (!filteredEntities.length && !searchTerm) {
+      return FALLBACK_ENTITIES.map(ent => ({ ...ent, id: -1 }));
     }
 
-    return apiEntities.map((item) => ({
+    return filteredEntities.map((item) => ({
+      id: item.id,
       name: item.entity,
       aliases: item.full_name ? 2 : 1,
       mentions24h: 0,
       netSentiment: 'N/A',
       risk: 'LOW',
     }));
-  }, [apiEntities]);
+  }, [filteredEntities, searchTerm]);
+
+  const handleDelete = async (id: number) => {
+    if (id === -1) return;
+    if (window.confirm('Are you sure you want to delete this entity?')) {
+      const ok = await sentimentApi.deletePoliticalEntity(id);
+      if (ok) {
+        void loadEntities();
+      }
+    }
+  };
+
+  const handleAdd = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const res = await sentimentApi.addPoliticalEntity(newEntity);
+    if (res.ok) {
+      setIsAddModalOpen(false);
+      setNewEntity({ entity: '', type: 'PARTY', full_name: '', description: '' });
+      void loadEntities();
+    } else {
+      alert(res.message);
+    }
+  };
 
   const trackedCount = apiEntities.length || 42;
 
@@ -50,11 +84,68 @@ const Entities: React.FC = () => {
             <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Political Entities</h1>
             <p className="text-on-surface-variant font-mono text-xs mt-2">ENTITY_MANAGEMENT_SYSTEM</p>
           </div>
-          <button className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 hover:brightness-110 transition-all">
+          <button 
+            onClick={() => setIsAddModalOpen(true)}
+            className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 hover:brightness-110 transition-all"
+          >
             <span className="material-symbols-outlined text-sm">add</span>
             Add Entity
           </button>
         </div>
+
+        {/* Add Entity Modal */}
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+            <div className="bg-surface-container-low border border-outline-variant/20 w-full max-w-md p-6 space-y-4">
+              <div className="flex justify-between items-center border-b border-outline-variant/10 pb-3">
+                <h2 className="font-headline text-lg font-bold uppercase tracking-tight">Register New Entity</h2>
+                <button onClick={() => setIsAddModalOpen(false)} className="text-on-surface-variant hover:text-on-surface">
+                  <span className="material-symbols-outlined">close</span>
+                </button>
+              </div>
+              <form onSubmit={handleAdd} className="space-y-4 font-mono text-[11px]">
+                <div className="space-y-1">
+                  <label className="text-on-surface-variant uppercase">Entity Short Name (ID)</label>
+                  <input
+                    required
+                    type="text"
+                    value={newEntity.entity}
+                    onChange={e => setNewEntity({ ...newEntity, entity: e.target.value })}
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 px-3 py-2 text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
+                    placeholder="e.g. BDP"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-on-surface-variant uppercase">Entity Type</label>
+                  <select
+                    value={newEntity.type}
+                    onChange={e => setNewEntity({ ...newEntity, type: e.target.value })}
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 px-3 py-2 text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
+                  >
+                    <option value="PARTY">POLITICAL_PARTY</option>
+                    <option value="PERSON">POLITICAL_LEADER</option>
+                    <option value="LOCATION">DISTRICT_LOCATION</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-on-surface-variant uppercase">Full Legal Name</label>
+                  <input
+                    type="text"
+                    value={newEntity.full_name}
+                    onChange={e => setNewEntity({ ...newEntity, full_name: e.target.value })}
+                    className="w-full bg-surface-container-highest border border-outline-variant/20 px-3 py-2 text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
+                    placeholder="e.g. Botswana Democratic Party"
+                  />
+                </div>
+                <div className="pt-2">
+                  <button type="submit" className="w-full bg-primary text-on-primary py-3 font-headline font-bold uppercase tracking-widest hover:brightness-110">
+                    Submit Registry
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
@@ -80,6 +171,8 @@ const Entities: React.FC = () => {
               <input
                 type="text"
                 placeholder="FILTER_ENTITY..."
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
                 className="bg-transparent border-0 text-xs font-mono text-on-surface placeholder-on-surface-variant/40 focus:ring-0 w-44"
               />
             </div>
@@ -90,6 +183,7 @@ const Entities: React.FC = () => {
               <thead>
                 <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
                   <th className="pb-2 font-normal">Entity</th>
+                  <th className="pb-2 font-normal text-right">Action</th>
                   <th className="pb-2 font-normal text-right">Aliases</th>
                   <th className="pb-2 font-normal text-right">Mentions 24H</th>
                   <th className="pb-2 font-normal text-right">Net Sentiment</th>
@@ -99,7 +193,17 @@ const Entities: React.FC = () => {
               <tbody className="font-mono text-[10px]">
                 {tableRows.map((entity) => (
                   <tr key={entity.name} className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors">
-                    <td className="py-3 text-primary">{entity.name}</td>
+                    <td className="py-3 text-primary font-bold">{entity.name}</td>
+                    <td className="py-3 text-right">
+                      {entity.id !== -1 && (
+                        <button 
+                          onClick={() => handleDelete(entity.id)}
+                          className="text-tertiary hover:text-tertiary/80 transition-colors"
+                        >
+                          <span className="material-symbols-outlined text-sm">delete</span>
+                        </button>
+                      )}
+                    </td>
                     <td className="py-3 text-right">{entity.aliases}</td>
                     <td className="py-3 text-right">{entity.mentions24h || '--'}</td>
                     <td
@@ -125,7 +229,7 @@ const Entities: React.FC = () => {
               </tbody>
             </table>
           </div>
-          {loading && <p className="text-on-surface-variant font-mono text-[10px] mt-3">SYNCING_ENTITY_REGISTRY...</p>}
+          {loading && <p className="text-on-surface-variant font-mono text-[10px] mt-3 animate-pulse">SYNCING_ENTITY_REGISTRY...</p>}
           </div>
 
           <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant/10 p-4">
