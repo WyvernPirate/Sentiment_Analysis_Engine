@@ -71,8 +71,13 @@ class BatchAnalysisService:
             # Extract political entities from database
             political_entities = political_entity_service.extract_entities(text)
 
-            # Extract trigger words (model-aware)
-            trigger_words = sentiment_service.extract_sentiment_trigger_words(text, target_sentiment=sentiment)
+            # Extract trigger words (model-aware), excluding entity names to avoid noise in word cloud
+            exclude_names = [e.get('entity', '') for e in political_entities]
+            trigger_words = sentiment_service.extract_sentiment_trigger_words(
+                text, 
+                target_sentiment=sentiment,
+                exclude_words=exclude_names
+            )
 
             # Build analyzed row
             row_result = {

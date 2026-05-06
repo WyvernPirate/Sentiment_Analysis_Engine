@@ -295,11 +295,21 @@ class SocialCollectorService:
 
         # Twikit handles cookie reuse when cookies_file exists.
         await client.login(**login_kwargs)
+        
+        # Explicitly save cookies after login to ensure session persistence
+        try:
+            client.save_cookies(cookies_path)
+        except Exception:
+            pass
 
         safe_max = max(10, min(int(max_results), 100))
         active_query = (query or '').strip() or self._build_default_query()
 
-        tweets_page = await client.search_tweet(active_query, 'Latest')
+        # Perform the search
+        try:
+            tweets_page = await client.search_tweet(active_query, 'Latest')
+        except Exception as e:
+            raise RuntimeError(f'Twikit search failed: {str(e)}')
 
         tweets = []
         try:

@@ -117,16 +117,38 @@ class CsvIngestService:
             }
         }
 
+    def _is_fragmented_scraper_csv(self, headers: List[str]) -> bool:
+        """Detect if the CSV has technical CSS headers typical of messy scrapers."""
+        css_header_count = sum(1 for h in headers if 'css-' in h.lower() or 'r-' in h.lower())
+        return css_header_count > len(headers) / 2
+
+    def _stitch_fragmented_text(self, row: Dict, headers: List[str]) -> str:
+        """
+        Heuristic: merge adjacent columns that contain text segments.
+        Specifically handles the 'css-1jxf684' style where text is split.
+        """
+        # Common political keywords that often trigger splits in scrapers (due to being links)
+        SPLIT_TRIGGERS = {'duma', 'boko', 'masisi', 'bdp', 'udc', 'bcp', 'botswana'}
+        
+        fragments = []
+        # We look at columns in order. If they are adjacent and contain text, we join them.
+        for h in headers:
+            val = str(row.get(h, '') or '').strip()
+            if val:
+                fragments.append(val)
+        
+        # Heuristic: Find a sequence that looks like a sentence
+        # In messy scrapers, the text is often in a specific range of columns
+        # For 'Instant Data Scraper', it's usually the middle-to-end columns
+        text_candidate = " ".join(fragments)
+        # Clean up multiple spaces
+        import re
+        return re.sub(r'\s+', ' ', text_candidate).strip()
+
     def parse_csv(self, file_content: str, filename: str = 'upload.csv') -> Dict:
         """
         Parse CSV content into normalized social records.
-
-        Returns dict with:
-        - records: list of normalized record dicts
-        - count: number of records
-        - query: identifier string
-        - meta: detection metadata
-        - provider: 'csv_upload'
+        Now includes 'Auto-Repair' for fragmented scraper outputs.
         """
         reader = csv.DictReader(io.StringIO(file_content))
         headers = reader.fieldnames or []
@@ -137,21 +159,30 @@ class CsvIngestService:
         if not rows:
             raise ValueError('CSV file has no data rows')
 
-        # Detect columns
+        # Detect columns using standard candidate names
         text_col = self._detect_column(headers, TEXT_COLUMN_NAMES)
         author_col = self._detect_column(headers, AUTHOR_COLUMN_NAMES)
         date_col = self._detect_column(headers, DATE_COLUMN_NAMES)
         url_col = self._detect_column(headers, URL_COLUMN_NAMES)
         id_col = self._detect_column(headers, ID_COLUMN_NAMES)
 
-        # Fallback text column detection
-        if not text_col:
+        is_fragmented = False
+        # If standard detection fails AND it looks like a messy scraper file, try Auto-Repair
+        if not text_col and self._is_fragmented_scraper_csv(headers):
+            is_fragmented = True
+            # For messy scrapers, we pick common indices if they aren't named
+            # Based on user's sample: Name=Col3, Handle=Col5, URL=Col6, Date=Col7
+            if not author_col and len(headers) > 2: author_col = headers[2]
+            if not url_col and len(headers) > 5: url_col = headers[5]
+            if not date_col and len(headers) > 6: date_col = headers[6]
+
+        # Fallback text column detection if still not found
+        if not text_col and not is_fragmented:
             text_col = self._detect_text_column_by_content(headers, rows)
 
-        if not text_col:
+        if not text_col and not is_fragmented:
             raise ValueError(
-                f'Could not detect a text column. Headers found: {headers}. '
-                f'Expected one of: {TEXT_COLUMN_NAMES}'
+                f'Could not detect a text column. Headers found: {headers}.'
             )
 
         fetched_at = datetime.utcnow().isoformat()
@@ -159,9 +190,16 @@ class CsvIngestService:
         records = []
 
         for idx, row in enumerate(rows):
-            text_raw = str(row.get(text_col, '') or '').strip()
+            if is_fragmented:
+                # Merge columns that look like text fragments (usually starting from col 7-8 in sample)
+                # But we'll try a safer approach: merge everything after the known metadata columns
+                # or just use the _stitch method on a subset
+                text_raw = self._stitch_fragmented_text(row, headers[7:15])
+            else:
+                text_raw = str(row.get(text_col, '') or '').strip()
+
             if not text_raw:
-                continue  # Skip empty text rows
+                continue
 
             record = {
                 'source': 'csv',
@@ -183,7 +221,8 @@ class CsvIngestService:
                 },
                 'query_used': query_label,
                 'fetched_at_utc': fetched_at,
-                'raw_item': dict(row),  # Preserve all original columns
+                'raw_item': dict(row),
+                'was_repaired': is_fragmented
             }
 
             records.append(record)
@@ -199,15 +238,13 @@ class CsvIngestService:
                 'filename': filename,
                 'total_csv_rows': len(rows),
                 'rows_with_text': len(records),
-                'rows_skipped_empty': len(rows) - len(records),
+                'was_auto_repaired': is_fragmented,
                 'detected_columns': {
-                    'text': text_col,
+                    'text': 'REPAIRED_FRAGMENTS' if is_fragmented else text_col,
                     'author': author_col,
                     'date': date_col,
                     'url': url_col,
-                    'id': id_col,
-                },
-                'all_headers': headers,
+                }
             }
         }
 
