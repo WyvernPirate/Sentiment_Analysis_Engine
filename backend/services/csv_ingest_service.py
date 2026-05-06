@@ -118,37 +118,55 @@ class CsvIngestService:
         }
 
     def _is_fragmented_scraper_csv(self, headers: List[str]) -> bool:
-        """Detect if the CSV has technical CSS headers typical of messy scrapers."""
-        css_header_count = sum(1 for h in headers if 'css-' in h.lower() or 'r-' in h.lower())
-        return css_header_count > len(headers) / 2
+        """Detect if the CSV has technical CSS headers typical of messy scrapers (X or Facebook)."""
+        technical_patterns = ['css-', 'r-', 'x1i10', 'x193', 'html-', 'xdj']
+        technical_count = sum(1 for h in headers if any(p in h.lower() for p in technical_patterns))
+        return technical_count > len(headers) * 0.3
 
     def _stitch_fragmented_text(self, row: Dict, headers: List[str]) -> str:
         """
-        Heuristic: merge adjacent columns that contain text segments.
-        Specifically handles the 'css-1jxf684' style where text is split.
+        Heuristic: merge columns that contain substantive text segments.
+        Skips columns that are clearly URLs, timestamps, or very short noise.
         """
-        # Common political keywords that often trigger splits in scrapers (due to being links)
-        SPLIT_TRIGGERS = {'duma', 'boko', 'masisi', 'bdp', 'udc', 'bcp', 'botswana'}
-        
         fragments = []
-        # We look at columns in order. If they are adjacent and contain text, we join them.
         for h in headers:
             val = str(row.get(h, '') or '').strip()
-            if val:
-                fragments.append(val)
+            if not val:
+                continue
+            
+            # Skip URLs in text stitching
+            if val.startswith('http'):
+                continue
+                
+            # Skip common short UI noise (·, Join, Follow, etc)
+            if val in ('·', 'Join', 'Follow', 'Comment', 'Share', 'Like', 'Reply', 'See more'):
+                continue
+            
+            fragments.append(val)
         
-        # Heuristic: Find a sequence that looks like a sentence
-        # In messy scrapers, the text is often in a specific range of columns
-        # For 'Instant Data Scraper', it's usually the middle-to-end columns
-        text_candidate = " ".join(fragments)
-        # Clean up multiple spaces
+        # Heuristic: Find the sequence that looks like the main content
+        # Usually, the longest fragment or the cluster of fragments
+        if not fragments:
+            return ""
+            
+        # For Facebook, the content is often split into multiple fragments.
+        # We'll join them but try to avoid duplicates if they appear in multiple columns.
+        unique_fragments = []
+        seen = set()
+        for f in fragments:
+            f_clean = f.lower().strip()
+            if f_clean not in seen and len(f_clean) > 1:
+                unique_fragments.append(f)
+                seen.add(f_clean)
+        
+        text_candidate = " ".join(unique_fragments)
         import re
         return re.sub(r'\s+', ' ', text_candidate).strip()
 
     def parse_csv(self, file_content: str, filename: str = 'upload.csv') -> Dict:
         """
         Parse CSV content into normalized social records.
-        Now includes 'Auto-Repair' for fragmented scraper outputs.
+        Now includes generalized 'Auto-Repair' for fragmented scraper outputs.
         """
         reader = csv.DictReader(io.StringIO(file_content))
         headers = reader.fieldnames or []
@@ -166,17 +184,31 @@ class CsvIngestService:
         url_col = self._detect_column(headers, URL_COLUMN_NAMES)
         id_col = self._detect_column(headers, ID_COLUMN_NAMES)
 
-        is_fragmented = False
-        # If standard detection fails AND it looks like a messy scraper file, try Auto-Repair
-        if not text_col and self._is_fragmented_scraper_csv(headers):
-            is_fragmented = True
-            # For messy scrapers, we pick common indices if they aren't named
-            # Based on user's sample: Name=Col3, Handle=Col5, URL=Col6, Date=Col7
-            if not author_col and len(headers) > 2: author_col = headers[2]
-            if not url_col and len(headers) > 5: url_col = headers[5]
-            if not date_col and len(headers) > 6: date_col = headers[6]
+        is_fragmented = self._is_fragmented_scraper_csv(headers)
+        
+        # Detect if it's specifically a Facebook scraper
+        is_facebook = any('x1i10' in h.lower() for h in headers)
 
-        # Fallback text column detection if still not found
+        if is_fragmented:
+            # For messy scrapers, we pick common indices if they aren't named
+            # Facebook/X scrapers often put metadata in early columns
+            if not author_col:
+                # Try to find a column with a name-like value
+                for h in headers[:10]:
+                    val = str(rows[0].get(h, '')).strip()
+                    if 3 < len(val) < 30 and ' ' in val and not val.startswith('http'):
+                        author_col = h
+                        break
+            
+            if not url_col:
+                # Find the first column starting with http
+                for h in headers:
+                    val = str(rows[0].get(h, '')).strip()
+                    if val.startswith('http'):
+                        url_col = h
+                        break
+
+        # Fallback text column detection
         if not text_col and not is_fragmented:
             text_col = self._detect_text_column_by_content(headers, rows)
 
@@ -191,10 +223,9 @@ class CsvIngestService:
 
         for idx, row in enumerate(rows):
             if is_fragmented:
-                # Merge columns that look like text fragments (usually starting from col 7-8 in sample)
-                # But we'll try a safer approach: merge everything after the known metadata columns
-                # or just use the _stitch method on a subset
-                text_raw = self._stitch_fragmented_text(row, headers[7:15])
+                # For Facebook, we search a wider range for fragments
+                search_range = headers[3:] if is_facebook else headers[7:20]
+                text_raw = self._stitch_fragmented_text(row, search_range)
             else:
                 text_raw = str(row.get(text_col, '') or '').strip()
 

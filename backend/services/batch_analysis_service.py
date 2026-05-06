@@ -50,32 +50,41 @@ class BatchAnalysisService:
         lexicon_service.refresh_lexicon()
         lexicon = lexicon_service.legacy_lexicon
 
-        # Analyze each row
+        # Pre-collect all texts for batch inference
+        valid_records = []
+        texts_to_analyze = []
+        for record in records:
+            text = (record.get('text_raw') or record.get('text_clean') or '').strip()
+            if text:
+                valid_records.append(record)
+                texts_to_analyze.append(text)
+
+        if not texts_to_analyze:
+            raise ValueError(f'No valid text records found in collection: {collection_id}')
+
+        # Run batch sentiment analysis (MUCH faster)
+        batch_results = sentiment_service.analyze_english_sentiment_batch(texts_to_analyze)
+
+        # Process results
         analyzed_rows = []
         sentiment_counts = {'positive': 0, 'neutral': 0, 'negative': 0}
         total_confidence = 0.0
-        trigger_word_counts: Dict[str, Dict] = {}  # word -> {count, type}
-        entity_counts: Dict[str, int] = {}  # entity -> count
+        trigger_word_counts: Dict[str, Dict] = {}
+        entity_counts: Dict[str, int] = {}
 
-        for idx, record in enumerate(records):
-            text = (record.get('text_raw') or record.get('text_clean') or '').strip()
-            if not text:
-                continue
-
-            # Run sentiment analysis
-            sentiment, confidence, details = sentiment_service.analyze_english_sentiment(text)
-
+        for idx, (record, (sentiment, confidence, details)) in enumerate(zip(valid_records, batch_results)):
+            text = texts_to_analyze[idx]
+            
             # Match political words from lexicon
             matched_political = sentiment_service.match_political_words(text, lexicon)
 
             # Extract political entities from database
             political_entities = political_entity_service.extract_entities(text)
 
-            # Extract trigger words (model-aware), excluding entity names to avoid noise in word cloud
+            # Extract trigger words - Use basic mode for batch to avoid LOO performance hit
             exclude_names = [e.get('entity', '') for e in political_entities]
-            trigger_words = sentiment_service.extract_sentiment_trigger_words(
+            trigger_words = sentiment_service.extract_basic_trigger_words(
                 text, 
-                target_sentiment=sentiment,
                 exclude_words=exclude_names
             )
 
