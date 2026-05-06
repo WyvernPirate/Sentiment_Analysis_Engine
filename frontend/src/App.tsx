@@ -7,20 +7,24 @@ import Scraping from './pages/Scraping';
 import Health from './pages/Health';
 import Logs from './pages/Logs';
 
+import { AnalyticsProvider } from './context/AnalyticsContext';
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route element={<DashboardLayout />}>
-          <Route path="/" element={<Navigate to="/analytics" replace />} />
-          <Route path="/analytics" element={<Analytics />} />
-          <Route path="/entities" element={<Entities />} />
-          <Route path="/scraping" element={<Scraping />} />
-          <Route path="/health" element={<Health />} />
-          <Route path="/logs" element={<Logs />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <AnalyticsProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route element={<DashboardLayout />}>
+            <Route path="/" element={<Navigate to="/analytics" replace />} />
+            <Route path="/analytics" element={<Analytics />} />
+            <Route path="/entities" element={<Entities />} />
+            <Route path="/scraping" element={<Scraping />} />
+            <Route path="/health" element={<Health />} />
+            <Route path="/logs" element={<Logs />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </AnalyticsProvider>
   );
 }
 
