@@ -114,6 +114,7 @@ const Scraping: React.FC = () => {
         TEXT_COLUMN_NAMES.includes(h)
       );
       const detectedTextCol = headers.find((h) => TEXT_COLUMN_NAMES.includes(h)) || '';
+      const isMessyScraper = !hasTextColumn && headers.some(h => h.includes('css-') || h.includes('r-'));
 
       const previewRows: CsvPreviewRow[] = lines.slice(1).map((line) => {
         const values = parseCsvLine(line);
@@ -123,11 +124,19 @@ const Scraping: React.FC = () => {
           rowMap[header] = values[idx] || '';
         });
 
+        // If messy scraper, we perform a frontend version of the 'stitch' logic for the preview
+        let textVal = rowMap.text || rowMap.text_raw || rowMap.content || rowMap.tweet || rowMap.message || rowMap.post || rowMap.body || rowMap.description || rowMap.full_text || '';
+        
+        if (isMessyScraper && !textVal) {
+          // Merge columns 7-11 (approximate range for Instant Data Scraper text)
+          textVal = headers.slice(7, 12).map(h => rowMap[h]).filter(Boolean).join(' ');
+        }
+
         const mapped = {
-          url: rowMap.url || rowMap.post_url || '',
-          text: rowMap.text || rowMap.text_raw || rowMap.content || rowMap.tweet || rowMap.message || rowMap.post || rowMap.body || rowMap.description || rowMap.full_text || '',
-          author: rowMap.author || rowMap.author_username || rowMap.user || rowMap.username || '',
-          created_at: rowMap.created_at || rowMap.created_at_utc || rowMap.date || rowMap.timestamp || '',
+          url: rowMap.url || rowMap.post_url || rowMap[headers[5]] || '',
+          text: textVal,
+          author: rowMap.author || rowMap.author_username || rowMap.user || rowMap.username || rowMap[headers[2]] || '',
+          created_at: rowMap.created_at || rowMap.created_at_utc || rowMap.date || rowMap.timestamp || rowMap[headers[6]] || '',
         };
 
         return {
@@ -152,6 +161,10 @@ const Scraping: React.FC = () => {
         setCsvType('data');
         setCsvTextColumnDetected(detectedTextCol);
         setStatusMessage(`Detected: DATA CSV — ${rows.length} rows with text column "${detectedTextCol}" from ${file.name}.`);
+      } else if (isMessyScraper) {
+        setCsvType('data');
+        setCsvTextColumnDetected('AUTO_REPAIR_FRAGMENTS');
+        setStatusMessage(`Detected: MESSY SCRAPER CSV — Auto-Repairing ${rows.length} rows from ${file.name}.`);
       } else {
         setCsvType('url_only');
         setCsvTextColumnDetected('');
@@ -171,6 +184,8 @@ const Scraping: React.FC = () => {
     setCsvTextColumnDetected('');
   };
 
+  const [autoClean, setAutoClean] = useState<boolean>(true);
+
   const handleCollect = async () => {
     setActionLoading(true);
     setStatusError('');
@@ -179,12 +194,14 @@ const Scraping: React.FC = () => {
     try {
       // Data CSV → upload file directly to backend for parsing & ingestion
       if (csvType === 'data' && csvFile) {
-        const result = await sentimentApi.uploadCsvFile(csvFile);
+        const result = await sentimentApi.uploadCsvFile(csvFile, autoClean ? filterMode : undefined);
         if (result.error) {
           setStatusError(result.error);
           return;
         }
-        setStatusMessage(`CSV ingested: ${result.count} records saved as ${result.collection_id}.`);
+        
+        const cleanStatus = result.meta?.auto_cleaned ? ` (Auto-Cleaned: ${result.meta.cleaning_report?.cleaned_records} records kept)` : '';
+        setStatusMessage(`CSV ingested: ${result.count} records saved as ${result.collection_id}${cleanStatus}.`);
         await refreshSocialData();
         setSelectedCollectionId(result.collection_id);
         clearCsv();
@@ -344,13 +361,24 @@ const Scraping: React.FC = () => {
                 className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 file:mr-2 file:border-0 file:bg-primary/10 file:text-primary file:px-2 file:py-1 flex-1"
               />
               {csvFileName && (
-                <button
-                  type="button"
-                  onClick={clearCsv}
-                  className="font-mono text-[10px] text-on-surface-variant hover:text-tertiary px-2 py-1 border border-outline-variant/20 transition-colors"
-                >
-                  CLEAR
-                </button>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer group">
+                    <input
+                      type="checkbox"
+                      checked={autoClean}
+                      onChange={(e) => setAutoClean(e.target.checked)}
+                      className="w-3 h-3 accent-primary"
+                    />
+                    <span className="font-mono text-[10px] text-on-surface-variant group-hover:text-secondary uppercase">Auto-Clean</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={clearCsv}
+                    className="font-mono text-[10px] text-on-surface-variant hover:text-tertiary px-2 py-1 border border-outline-variant/20 transition-colors"
+                  >
+                    CLEAR
+                  </button>
+                </div>
               )}
             </div>
             <p className="font-mono text-[9px] text-on-surface-variant mt-2">
@@ -360,12 +388,16 @@ const Scraping: React.FC = () => {
 
           {/* Query-based collection controls */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-            <input
+            <select
               value={provider}
               onChange={(e) => setProvider(e.target.value)}
-              placeholder="provider (optional)"
               className="bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
-            />
+            >
+              <option value="">Provider: Default</option>
+              <option value="brightdata">Bright Data</option>
+              <option value="apify">Apify</option>
+              <option value="twikit">Twikit (X Scraper)</option>
+            </select>
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
