@@ -9,9 +9,11 @@ interface WordCloudItem {
 interface WordCloudProps {
   words: WordCloudItem[];
   maxWords?: number;
+  onWordClick?: (word: string) => void;
+  selectedWord?: string | null;
 }
 
-const WordCloud: React.FC<WordCloudProps> = ({ words, maxWords = 25 }) => {
+const WordCloud: React.FC<WordCloudProps> = ({ words, maxWords = 25, onWordClick, selectedWord }) => {
   const processedWords = useMemo(() => {
     if (!words || words.length === 0) return [];
     
@@ -25,7 +27,7 @@ const WordCloud: React.FC<WordCloudProps> = ({ words, maxWords = 25 }) => {
         // 1. Size scales with weight
         // 2. Random rotation (0 or 90 degrees for classic look)
         // 3. Colors based on sentiment
-        const rotate = Math.random() > 0.8 ? 90 : 0; // 20% vertical words
+        const rotate = 0; // All horizontal
         
         return {
           ...w,
@@ -53,7 +55,11 @@ const WordCloud: React.FC<WordCloudProps> = ({ words, maxWords = 25 }) => {
       {processedWords.map((item) => (
         <div
           key={item.word}
-          className="transition-transform duration-300 hover:scale-125 cursor-default group relative z-10"
+          onClick={() => onWordClick?.(item.word)}
+          className={`
+            transition-all duration-300 hover:scale-125 cursor-pointer group relative z-10
+            ${selectedWord === item.word ? 'ring-2 ring-primary/40 rounded px-1 scale-110' : ''}
+          `}
           style={{
             fontSize: item.size,
             opacity: item.opacity,
@@ -65,7 +71,8 @@ const WordCloud: React.FC<WordCloudProps> = ({ words, maxWords = 25 }) => {
             className={`
               font-headline font-bold uppercase select-none
               ${item.type === 'positive' ? 'text-secondary' : 'text-tertiary'}
-              hover:drop-shadow-[0_0_8px_rgba(var(--md-sys-color-primary-rgb),0.5)]
+              group-hover:drop-shadow-[0_0_8px_rgba(var(--md-sys-color-primary-rgb),0.5)]
+              ${selectedWord === item.word ? 'brightness-125' : ''}
             `}
           >
             {item.word}
