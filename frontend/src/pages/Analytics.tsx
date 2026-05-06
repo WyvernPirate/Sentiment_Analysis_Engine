@@ -4,9 +4,9 @@ import {
   SocialCollection,
   BatchAnalysisResult,
   AnalysisJob,
-  AnalyzedRow,
 } from '../types/sentiment';
 import WordCloud from '../components/Analysis/WordCloud';
+import { useAnalytics } from '../context/AnalyticsContext';
 
 type SentimentFilter = 'all' | 'positive' | 'neutral' | 'negative';
 
@@ -32,6 +32,11 @@ const Analytics: React.FC = () => {
   const [sentimentFilter, setSentimentFilter] = useState<SentimentFilter>('all');
   const [expandedRow, setExpandedRow] = useState<number | null>(null);
   const [sortBy, setSortBy] = useState<'index' | 'confidence'>('index');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [triggerWordFilter, setTriggerWordFilter] = useState<string | null>(null);
+  const [entityFilter, setEntityFilter] = useState<string | null>(null);
+
+  const { startDate, endDate, setStartDate, setEndDate } = useAnalytics();
 
   const loadData = useCallback(async () => {
     const [colls, jobs] = await Promise.all([
@@ -81,10 +86,114 @@ const Analytics: React.FC = () => {
     }
   };
 
-  const agg = analysisResult?.aggregate;
-  const dist = agg?.sentiment_distribution;
-  const total = (dist?.positive ?? 0) + (dist?.neutral ?? 0) + (dist?.negative ?? 0);
 
+  const filteredRows = useMemo(() => {
+    if (!analysisResult) return [];
+    let rows = [...analysisResult.rows];
+    if (sentimentFilter !== 'all') {
+      rows = rows.filter((r) => r.sentiment === sentimentFilter);
+    }
+    if (entityFilter) {
+      rows = rows.filter((r) => r.entities.some((e) => e.entity === entityFilter));
+    }
+    if (triggerWordFilter) {
+      rows = rows.filter((r) => 
+        r.trigger_words.positive.some(w => w.toLowerCase() === triggerWordFilter.toLowerCase()) ||
+        r.trigger_words.negative.some(w => w.toLowerCase() === triggerWordFilter.toLowerCase())
+      );
+    }
+    if (searchQuery) {
+      rows = rows.filter((r) => r.text.toLowerCase().includes(searchQuery.toLowerCase()));
+    }
+    
+    // Global Date Filtering
+    if (startDate) {
+      rows = rows.filter((r) => r.meta.date >= startDate);
+    }
+    if (endDate) {
+      rows = rows.filter((r) => r.meta.date <= endDate);
+    }
+
+    if (sortBy === 'confidence') {
+      rows.sort((a, b) => b.confidence - a.confidence);
+    }
+    return rows;
+  }, [analysisResult, sentimentFilter, sortBy, entityFilter, triggerWordFilter, searchQuery, startDate, endDate]);
+
+  const filteredAgg = useMemo(() => {
+    if (!analysisResult || filteredRows.length === 0) return null;
+
+    const total_rows = filteredRows.length;
+    const sentiment_distribution = {
+      positive: filteredRows.filter(r => r.sentiment === 'positive').length,
+      neutral: filteredRows.filter(r => r.sentiment === 'neutral').length,
+      negative: filteredRows.filter(r => r.sentiment === 'negative').length,
+    };
+    const avg_confidence = filteredRows.reduce((acc, r) => acc + r.confidence, 0) / total_rows;
+
+    const entityCounts: Record<string, number> = {};
+    filteredRows.forEach(row => {
+      row.entities.forEach(ent => {
+        entityCounts[ent.entity] = (entityCounts[ent.entity] || 0) + 1;
+      });
+    });
+    const top_entities = Object.entries(entityCounts)
+      .map(([entity, count]) => ({ entity, count }))
+      .sort((a, b) => b.count - a.count);
+
+    const triggerWordCounts: Record<string, { count: number; type: string }> = {};
+    filteredRows.forEach(row => {
+      ['positive', 'negative'].forEach(type => {
+        row.trigger_words[type as 'positive' | 'negative'].forEach(word => {
+          const key = word.toLowerCase();
+          if (!triggerWordCounts[key]) {
+            triggerWordCounts[key] = { count: 0, type };
+          }
+          triggerWordCounts[key].count++;
+        });
+      });
+    });
+    const top_trigger_words = Object.entries(triggerWordCounts)
+      .map(([word, data]) => ({ word, ...data }))
+      .sort((a, b) => b.count - a.count);
+
+    const entitySentimentCounts: Record<string, { positive: number; negative: number }> = {};
+    filteredRows.forEach(row => {
+      row.entities.forEach(ent => {
+        if (!entitySentimentCounts[ent.entity]) {
+          entitySentimentCounts[ent.entity] = { positive: 0, negative: 0 };
+        }
+        if (row.sentiment === 'positive') entitySentimentCounts[ent.entity].positive++;
+        if (row.sentiment === 'negative') entitySentimentCounts[ent.entity].negative++;
+      });
+    });
+
+    const top_positive_entities = Object.entries(entitySentimentCounts)
+      .map(([entity, scores]) => ({ entity, count: scores.positive }))
+      .filter(e => e.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    const top_negative_entities = Object.entries(entitySentimentCounts)
+      .map(([entity, scores]) => ({ entity, count: scores.negative }))
+      .filter(e => e.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    return {
+      total_rows,
+      sentiment_distribution,
+      avg_confidence,
+      top_entities,
+      top_trigger_words,
+      top_positive_entities,
+      top_negative_entities
+    };
+  }, [analysisResult, filteredRows]);
+
+  const agg = analysisResult?.aggregate;
+  const displayAgg = filteredAgg || agg;
+  const dist = displayAgg?.sentiment_distribution;
+
+  const total = (dist?.positive ?? 0) + (dist?.neutral ?? 0) + (dist?.negative ?? 0);
   const pctPos = total ? Math.round((dist!.positive / total) * 100) : 0;
   const pctNeu = total ? Math.round((dist!.neutral / total) * 100) : 0;
   const pctNeg = total ? 100 - pctPos - pctNeu : 0;
@@ -95,39 +204,23 @@ const Analytics: React.FC = () => {
   const neuArc = (pctNeu / 100) * circumference;
   const negArc = (pctNeg / 100) * circumference;
 
-  const filteredRows = useMemo(() => {
-    if (!analysisResult) return [];
-    let rows = [...analysisResult.rows];
-    if (sentimentFilter !== 'all') {
-      rows = rows.filter((r) => r.sentiment === sentimentFilter);
-    }
-    if (sortBy === 'confidence') {
-      rows.sort((a, b) => b.confidence - a.confidence);
-    }
-    return rows;
-  }, [analysisResult, sentimentFilter, sortBy]);
-
   return (
     <div className="ml-64 pt-14 min-h-screen bg-surface">
       <div className="p-6 space-y-6">
-        {/* Header */}
-        <div className="flex justify-between items-end pb-4 border-b border-outline-variant/10">
+        {/* Header & Main Controls */}
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-outline-variant/10">
           <div>
             <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Analytics</h1>
-            <p className="text-on-surface-variant font-mono text-xs mt-1">
+            <p className="text-on-surface-variant font-mono text-[10px] mt-1">
               BATCH_SENTIMENT_ANALYSIS {analysisResult ? `// JOB: ${analysisResult.job_id}` : ''}
             </p>
           </div>
-        </div>
-
-        {/* Controls */}
-        <section className="bg-surface-container-low border border-outline-variant/10 p-4 space-y-3">
-          <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Analysis Control</h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+          
+          <div className="flex flex-wrap items-center gap-2">
             <select
               value={selectedCollectionId}
               onChange={(e) => setSelectedCollectionId(e.target.value)}
-              className="col-span-2 bg-surface-container-lowest border border-outline-variant/20 text-xs font-mono px-3 py-2 focus:ring-0"
+              className="bg-surface-container-low border border-outline-variant/20 text-[10px] font-mono px-3 py-2 focus:ring-0 w-64"
             >
               <option value="">Select collection...</option>
               {collections.map((c) => (
@@ -153,34 +246,112 @@ const Analytics: React.FC = () => {
               Refresh
             </button>
           </div>
-          {error && <p className="font-mono text-[10px] text-tertiary">{error}</p>}
-          {loading && <p className="font-mono text-[10px] text-on-surface-variant">LOADING_COLLECTIONS...</p>}
+        </div>
+
+        {/* Global Filter Bar */}
+        <section className="bg-surface-container-low border border-outline-variant/10 p-3 flex flex-wrap items-center gap-4 sticky top-14 z-20 shadow-sm">
+          <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/20 px-3 py-1.5 flex-1 min-w-[200px]">
+            <span className="material-symbols-outlined text-sm text-on-surface-variant">search</span>
+            <input 
+              type="text"
+              placeholder="SEARCH_TEXT..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="bg-transparent border-none text-[10px] font-mono focus:ring-0 w-full"
+            />
+          </div>
+
+          <div className="flex items-center gap-1 border-l border-outline-variant/20 pl-4">
+            <p className="font-mono text-[9px] uppercase text-on-surface-variant mr-2">Filter:</p>
+            {[
+              { key: 'all', label: 'ALL', color: 'text-on-surface' },
+              { key: 'positive', label: 'POS', color: 'text-secondary' },
+              { key: 'neutral', label: 'NEU', color: 'text-on-surface-variant' },
+              { key: 'negative', label: 'NEG', color: 'text-tertiary' },
+            ].map((f) => (
+              <button 
+                key={f.key}
+                onClick={() => setSentimentFilter(f.key as SentimentFilter)}
+                className={`px-2 py-1 text-[9px] font-mono border ${sentimentFilter === f.key ? 'bg-primary/10 border-primary text-primary' : 'border-transparent hover:border-outline-variant/30 text-on-surface-variant'}`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+
+          {(sentimentFilter !== 'all' || entityFilter || triggerWordFilter || searchQuery || startDate || endDate) && (
+            <button 
+              onClick={() => {
+                setSentimentFilter('all');
+                setEntityFilter(null);
+                setTriggerWordFilter(null);
+                setSearchQuery('');
+                setStartDate('');
+                setEndDate('');
+              }}
+              className="flex items-center gap-1 text-[9px] font-mono text-tertiary hover:underline ml-auto"
+            >
+              <span className="material-symbols-outlined text-[10px]">close</span>
+              RESET_ALL
+            </button>
+          )}
         </section>
+
+        {error && <p className="font-mono text-[10px] text-tertiary">{error}</p>}
+        {loading && <p className="font-mono text-[10px] text-on-surface-variant animate-pulse">LOADING_DATA...</p>}
 
         {/* Results — only show after analysis */}
         {analysisResult && agg && dist && (
           <>
             {/* Stat Cards */}
             <section className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              <div className="bg-surface-container-low border border-outline-variant/10 p-4">
+              <div 
+                className={`bg-surface-container-low border border-outline-variant/10 p-4 cursor-pointer transition-colors hover:bg-surface-container-high ${sentimentFilter === 'all' && !entityFilter && !triggerWordFilter ? 'border-primary/40' : ''}`}
+                onClick={() => { 
+                  setSentimentFilter('all'); 
+                  setEntityFilter(null); 
+                  setTriggerWordFilter(null);
+                }}
+              >
                 <p className="font-mono text-[10px] uppercase text-on-surface-variant">Total Rows</p>
-                <p className="text-3xl font-headline font-bold text-primary mt-2">{agg.total_rows}</p>
+                <p className="text-3xl font-headline font-bold text-primary mt-2">{displayAgg.total_rows}</p>
               </div>
-              <div className="bg-surface-container-low border border-outline-variant/10 p-4">
+              <div 
+                className={`bg-surface-container-low border border-outline-variant/10 p-4 cursor-pointer transition-colors hover:bg-surface-container-high ${sentimentFilter === 'positive' ? 'border-secondary/40' : ''}`}
+                onClick={() => {
+                  setSentimentFilter('positive');
+                  setEntityFilter(null);
+                  setTriggerWordFilter(null);
+                }}
+              >
                 <p className="font-mono text-[10px] uppercase text-on-surface-variant">Positive</p>
                 <p className="text-3xl font-headline font-bold text-secondary mt-2">{dist.positive} <span className="text-xs font-mono font-normal">{pctPos}%</span></p>
               </div>
-              <div className="bg-surface-container-low border border-outline-variant/10 p-4">
+              <div 
+                className={`bg-surface-container-low border border-outline-variant/10 p-4 cursor-pointer transition-colors hover:bg-surface-container-high ${sentimentFilter === 'neutral' ? 'border-on-surface-variant/40' : ''}`}
+                onClick={() => {
+                  setSentimentFilter('neutral');
+                  setEntityFilter(null);
+                  setTriggerWordFilter(null);
+                }}
+              >
                 <p className="font-mono text-[10px] uppercase text-on-surface-variant">Neutral</p>
                 <p className="text-3xl font-headline font-bold text-on-surface-variant mt-2">{dist.neutral} <span className="text-xs font-mono font-normal">{pctNeu}%</span></p>
               </div>
-              <div className="bg-surface-container-low border border-outline-variant/10 p-4">
+              <div 
+                className={`bg-surface-container-low border border-outline-variant/10 p-4 cursor-pointer transition-colors hover:bg-surface-container-high ${sentimentFilter === 'negative' ? 'border-tertiary/40' : ''}`}
+                onClick={() => {
+                  setSentimentFilter('negative');
+                  setEntityFilter(null);
+                  setTriggerWordFilter(null);
+                }}
+              >
                 <p className="font-mono text-[10px] uppercase text-on-surface-variant">Negative</p>
                 <p className="text-3xl font-headline font-bold text-tertiary mt-2">{dist.negative} <span className="text-xs font-mono font-normal">{pctNeg}%</span></p>
               </div>
               <div className="bg-surface-container-low border border-outline-variant/10 p-4">
                 <p className="font-mono text-[10px] uppercase text-on-surface-variant">Avg Confidence</p>
-                <p className="text-3xl font-headline font-bold text-primary mt-2">{(agg.avg_confidence * 100).toFixed(1)}%</p>
+                <p className="text-3xl font-headline font-bold text-primary mt-2">{(displayAgg.avg_confidence * 100).toFixed(1)}%</p>
               </div>
             </section>
 
@@ -196,13 +367,16 @@ const Analytics: React.FC = () => {
                     <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
                       <circle cx="50" cy="50" r="40" fill="transparent" stroke="#86bdf7" strokeWidth="18"
                         strokeDasharray={`${posArc} ${circumference - posArc}`} strokeDashoffset="0"
-                        className="opacity-80 hover:opacity-100 transition-opacity" />
+                        className={`opacity-80 hover:opacity-100 transition-all cursor-pointer ${sentimentFilter === 'positive' ? 'opacity-100 stroke-[22]' : ''}`}
+                        onClick={() => setSentimentFilter('positive')} />
                       <circle cx="50" cy="50" r="40" fill="transparent" stroke="#adaaaa" strokeWidth="18"
                         strokeDasharray={`${neuArc} ${circumference - neuArc}`} strokeDashoffset={`${-posArc}`}
-                        className="opacity-80 hover:opacity-100 transition-opacity" />
+                        className={`opacity-80 hover:opacity-100 transition-all cursor-pointer ${sentimentFilter === 'neutral' ? 'opacity-100 stroke-[22]' : ''}`}
+                        onClick={() => setSentimentFilter('neutral')} />
                       <circle cx="50" cy="50" r="40" fill="transparent" stroke="#ff716c" strokeWidth="18"
                         strokeDasharray={`${negArc} ${circumference - negArc}`} strokeDashoffset={`${-(posArc + neuArc)}`}
-                        className="opacity-80 hover:opacity-100 transition-opacity" />
+                        className={`opacity-80 hover:opacity-100 transition-all cursor-pointer ${sentimentFilter === 'negative' ? 'opacity-100 stroke-[22]' : ''}`}
+                        onClick={() => setSentimentFilter('negative')} />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="font-headline text-2xl font-black text-on-surface">{total}</span>
@@ -211,11 +385,15 @@ const Analytics: React.FC = () => {
                   </div>
                   <div className="space-y-4">
                     {[
-                      { label: 'Positive', pct: pctPos, color: 'bg-[#86bdf7]', text: 'text-secondary' },
-                      { label: 'Neutral', pct: pctNeu, color: 'bg-[#adaaaa]', text: 'text-on-surface-variant' },
-                      { label: 'Negative', pct: pctNeg, color: 'bg-[#ff716c]', text: 'text-tertiary' },
+                      { label: 'Positive', key: 'positive' as SentimentFilter, pct: pctPos, color: 'bg-[#86bdf7]', text: 'text-secondary' },
+                      { label: 'Neutral', key: 'neutral' as SentimentFilter, pct: pctNeu, color: 'bg-[#adaaaa]', text: 'text-on-surface-variant' },
+                      { label: 'Negative', key: 'negative' as SentimentFilter, pct: pctNeg, color: 'bg-[#ff716c]', text: 'text-tertiary' },
                     ].map((item) => (
-                      <div key={item.label} className="flex items-center gap-3">
+                      <div 
+                        key={item.label} 
+                        className={`flex items-center gap-3 cursor-pointer p-1 rounded transition-colors hover:bg-surface-container-high ${sentimentFilter === item.key ? 'bg-surface-container-high ring-1 ring-outline-variant/20' : ''}`}
+                        onClick={() => setSentimentFilter(item.key)}
+                      >
                         <div className={`w-3 h-3 ${item.color}`}></div>
                         <span className="font-mono text-xs uppercase text-on-surface-variant w-16">{item.label}</span>
                         <span className={`font-headline font-bold ${item.text}`}>{item.pct}%</span>
@@ -229,15 +407,27 @@ const Analytics: React.FC = () => {
               <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant/10 p-4">
                 <h2 className="font-headline text-xs font-bold uppercase tracking-widest flex items-center gap-2 mb-4">
                   <span className="w-1.5 h-1.5 bg-primary"></span> TOP_ENTITIES
+                  {entityFilter && (
+                    <button 
+                      className="ml-auto text-[9px] text-primary underline uppercase tracking-tighter"
+                      onClick={() => setEntityFilter(null)}
+                    >
+                      Clear
+                    </button>
+                  )}
                 </h2>
-                {agg.top_entities.length === 0 && <p className="font-mono text-[10px] text-on-surface-variant">No entities detected</p>}
+                {displayAgg.top_entities.length === 0 && <p className="font-mono text-[10px] text-on-surface-variant">No entities detected</p>}
                 <div className="space-y-2">
-                  {agg.top_entities.slice(0, 8).map((ent) => (
-                    <div key={ent.entity} className="flex items-center justify-between">
+                  {displayAgg.top_entities.slice(0, 8).map((ent) => (
+                    <div 
+                      key={ent.entity} 
+                      className={`flex items-center justify-between cursor-pointer p-1 transition-colors hover:bg-surface-container-high ${entityFilter === ent.entity ? 'bg-surface-container-high' : ''}`}
+                      onClick={() => setEntityFilter(ent.entity)}
+                    >
                       <span className="font-mono text-[10px] text-primary">{ent.entity}</span>
                       <div className="flex items-center gap-2">
                         <div className="w-24 h-1 bg-surface-container-highest">
-                          <div className="h-1 bg-primary" style={{ width: `${Math.min(100, (ent.count / (agg.top_entities[0]?.count || 1)) * 100)}%` }}></div>
+                          <div className="h-1 bg-primary" style={{ width: `${Math.min(100, (ent.count / (displayAgg.top_entities[0]?.count || 1)) * 100)}%` }}></div>
                         </div>
                         <span className="font-mono text-[10px] text-on-surface-variant w-6 text-right">{ent.count}</span>
                       </div>
@@ -250,8 +440,80 @@ const Analytics: React.FC = () => {
               <div className="col-span-12 lg:col-span-3 bg-surface-container-low border border-outline-variant/10 p-4">
                 <h2 className="font-headline text-xs font-bold uppercase tracking-widest flex items-center gap-2 mb-4">
                   <span className="w-1.5 h-1.5 bg-primary"></span> TRIGGER_WORDS
+                  {triggerWordFilter && (
+                    <button 
+                      className="ml-auto text-[9px] text-primary underline uppercase tracking-tighter"
+                      onClick={() => setTriggerWordFilter(null)}
+                    >
+                      Clear
+                    </button>
+                  )}
                 </h2>
-                <WordCloud words={agg.top_trigger_words} maxWords={15} />
+                <WordCloud 
+                  words={displayAgg.top_trigger_words} 
+                  maxWords={15} 
+                  onWordClick={(w) => setTriggerWordFilter(w === triggerWordFilter ? null : w)}
+                  selectedWord={triggerWordFilter}
+                />
+              </div>
+            </div>
+
+            {/* Entity Sentiment Analysis Section */}
+            <div className="grid grid-cols-12 gap-6">
+              {/* Positive Sentiment by Entity */}
+              <div className="col-span-12 lg:col-span-6 bg-surface-container-low border border-outline-variant/10 p-4">
+                <h2 className="font-headline text-xs font-bold uppercase tracking-widest flex items-center gap-2 mb-4">
+                  <span className="w-1.5 h-1.5 bg-secondary"></span> POSITIVE_SENTIMENT_BY_ENTITY
+                </h2>
+                {displayAgg.top_positive_entities?.length === 0 && <p className="font-mono text-[10px] text-on-surface-variant">No positive mentions found</p>}
+                <div className="space-y-3">
+                  {displayAgg.top_positive_entities?.slice(0, 5).map((ent) => (
+                    <div 
+                      key={ent.entity} 
+                      className="cursor-pointer group"
+                      onClick={() => { setEntityFilter(ent.entity); setSentimentFilter('positive'); }}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-mono text-[10px] text-on-surface uppercase">{ent.entity}</span>
+                        <span className="font-mono text-[10px] text-secondary font-bold">{ent.count} POS</span>
+                      </div>
+                      <div className="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-secondary transition-all duration-500" 
+                          style={{ width: `${(ent.count / (displayAgg.top_positive_entities?.[0]?.count || 1)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Negative Sentiment by Entity */}
+              <div className="col-span-12 lg:col-span-6 bg-surface-container-low border border-outline-variant/10 p-4">
+                <h2 className="font-headline text-xs font-bold uppercase tracking-widest flex items-center gap-2 mb-4">
+                  <span className="w-1.5 h-1.5 bg-tertiary"></span> NEGATIVE_SENTIMENT_BY_ENTITY
+                </h2>
+                {displayAgg.top_negative_entities?.length === 0 && <p className="font-mono text-[10px] text-on-surface-variant">No negative mentions found</p>}
+                <div className="space-y-3">
+                  {displayAgg.top_negative_entities?.slice(0, 5).map((ent) => (
+                    <div 
+                      key={ent.entity} 
+                      className="cursor-pointer group"
+                      onClick={() => { setEntityFilter(ent.entity); setSentimentFilter('negative'); }}
+                    >
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="font-mono text-[10px] text-on-surface uppercase">{ent.entity}</span>
+                        <span className="font-mono text-[10px] text-tertiary font-bold">{ent.count} NEG</span>
+                      </div>
+                      <div className="w-full h-2 bg-surface-container-highest rounded-full overflow-hidden">
+                        <div 
+                          className="h-full bg-tertiary transition-all duration-500" 
+                          style={{ width: `${(ent.count / (displayAgg.top_negative_entities?.[0]?.count || 1)) * 100}%` }}
+                        ></div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
 
@@ -263,15 +525,15 @@ const Analytics: React.FC = () => {
                   <span className="font-mono text-[9px] text-on-surface-variant ml-2">({filteredRows.length} rows)</span>
                 </h2>
                 <div className="flex gap-2">
-                  {(['all', 'positive', 'neutral', 'negative'] as SentimentFilter[]).map((f) => (
-                    <button key={f} type="button" onClick={() => setSentimentFilter(f)}
-                      className={`font-mono text-[9px] uppercase px-2 py-1 transition-colors ${sentimentFilter === f ? 'bg-primary/20 text-primary' : 'text-on-surface-variant hover:text-on-surface'}`}>
-                      {f}
-                    </button>
-                  ))}
-                  <button type="button" onClick={() => setSortBy(sortBy === 'index' ? 'confidence' : 'index')}
-                    className="font-mono text-[9px] text-on-surface-variant hover:text-primary px-2 py-1 border-l border-outline-variant/20">
-                    SORT: {sortBy === 'index' ? 'ORDER' : 'CONFIDENCE'}
+                  <button 
+                    type="button" 
+                    onClick={() => setSortBy(sortBy === 'index' ? 'confidence' : 'index')}
+                    className="flex items-center gap-1 font-mono text-[9px] text-on-surface-variant hover:text-primary px-2 py-1 border border-outline-variant/20 bg-surface-container-lowest"
+                  >
+                    <span className="material-symbols-outlined text-[10px]">
+                      {sortBy === 'index' ? 'sort_by_alpha' : 'monitoring'}
+                    </span>
+                    {sortBy === 'index' ? 'ORDER' : 'CONFIDENCE'}
                   </button>
                 </div>
               </div>
