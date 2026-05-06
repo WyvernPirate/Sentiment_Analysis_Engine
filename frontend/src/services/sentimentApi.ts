@@ -187,10 +187,13 @@ export const sentimentApi = {
         }
     },
 
-    async uploadCsvFile(file: File): Promise<SocialCollectResponse> {
+    async uploadCsvFile(file: File, filterMode?: 'relaxed' | 'strict'): Promise<SocialCollectResponse> {
         try {
             const formData = new FormData();
             formData.append('file', file);
+            if (filterMode) {
+                formData.append('filter_mode', filterMode);
+            }
             const response = await fetch(`${API_BASE_URL}/social/upload-csv`, {
                 method: 'POST',
                 body: formData,

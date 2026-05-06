@@ -70,8 +70,15 @@ export interface SocialCollectResponse {
     query: string;
     count: number;
     raw_file: string;
-    meta?: Record<string, unknown>;
-    records_preview?: Array<Record<string, unknown>>;
+    meta?: {
+        auto_cleaned?: boolean;
+        cleaning_report?: {
+            cleaned_records: number;
+            total_records: number;
+        };
+        [key: string]: any;
+    };
+    records_preview?: Array<Record<string, any>>;
     error?: string;
 }
 
@@ -118,6 +125,8 @@ export interface AggregateStats {
     avg_confidence: number;
     top_trigger_words: Array<{ word: string; count: number; type: string }>;
     top_entities: Array<{ entity: string; count: number }>;
+    top_positive_entities?: Array<{ entity: string; count: number }>;
+    top_negative_entities?: Array<{ entity: string; count: number }>;
     model_used: string;
 }
 
