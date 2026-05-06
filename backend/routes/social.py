@@ -1,4 +1,4 @@
-# This module defines the Flask Blueprint for social media data collection and cleaning endpoints.
+import os
 from flask import Blueprint, jsonify, request
 
 from config import Config
@@ -20,7 +20,7 @@ def health():
             'apify_configured': bool(Config.APIFY_API_TOKEN and Config.APIFY_ACTOR_ID),
             'twikit_configured': bool(
                 (Config.TWIKIT_USERNAME and Config.TWIKIT_PASSWORD)
-                or Config.TWIKIT_COOKIES_PATH
+                or (Config.TWIKIT_COOKIES_PATH and os.path.exists(Config.TWIKIT_COOKIES_PATH))
             )
         }
     )
@@ -156,6 +156,7 @@ def upload_csv():
             return jsonify({'error': 'Only CSV files are accepted'}), 400
 
         file_content = file.read().decode('utf-8', errors='replace')
+        filter_mode = request.form.get('filter_mode') # Check if user wants auto-clean
 
         parsed = csv_ingest_service.parse_csv(file_content, filename)
         records = parsed.get('records', [])
@@ -163,11 +164,22 @@ def upload_csv():
         if not records:
             return jsonify({'error': 'No valid text rows found in CSV'}), 400
 
+        # Perform Auto-Cleaning if requested
+        was_cleaned = False
+        cleaning_report = None
+        if filter_mode in ('relaxed', 'strict'):
+            records, cleaning_report = data_cleaner_service.clean_records(records, filter_mode=filter_mode)
+            was_cleaned = True
+
         log_entry = raw_data_manager.save_raw_batch(
             source='csv',
             query=parsed.get('query', ''),
             records=records,
-            run_meta=parsed.get('meta', {})
+            run_meta={
+                **parsed.get('meta', {}),
+                'auto_cleaned': was_cleaned,
+                'cleaning_report': cleaning_report
+            }
         )
 
         # Build preview (same shape as /collect)
