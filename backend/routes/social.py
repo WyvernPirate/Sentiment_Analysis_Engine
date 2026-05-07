@@ -75,6 +75,7 @@ def collect():
                 }
             )
 
+        # Save the full raw records along with metadata and preview for later cleaning and analysis
         log_entry = raw_data_manager.save_raw_batch(
             source='x',
             query=collected.get('query', ''),
