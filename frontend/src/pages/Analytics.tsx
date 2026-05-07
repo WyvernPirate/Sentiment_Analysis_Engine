@@ -4,6 +4,7 @@ import {
   SocialCollection,
   BatchAnalysisResult,
   AnalysisJob,
+  AnalyzedRow,
 } from '../types/sentiment';
 import WordCloud from '../components/Analysis/WordCloud';
 import { useAnalytics } from '../context/AnalyticsContext';
@@ -19,6 +20,47 @@ const SENTIMENT_BG: Record<string, string> = {
   positive: 'bg-secondary/10 text-secondary',
   neutral: 'bg-on-surface-variant/10 text-on-surface-variant',
   negative: 'bg-tertiary/10 text-tertiary',
+};
+
+const sanitizeFileName = (value: string) => value.replace(/[^a-z0-9-_]+/gi, '_').replace(/^_+|_+$/g, '') || 'analysis';
+
+const escapeCsvCell = (value: unknown) => {
+  const text = value === null || value === undefined ? '' : String(value);
+  if (/[",\n\r;]/.test(text)) {
+    return `"${text.replace(/"/g, '""')}"`;
+  }
+  return text;
+};
+
+const toCsvRow = (row: AnalyzedRow) => {
+  const entities = row.entities.map((entity) => `${entity.entity}:${entity.type}`).join('; ');
+  const politicalWords = row.political_words.map((word) => `${word.term}:${word.meaning}`).join('; ');
+
+  return [
+    row.row_index,
+    row.meta.date || '',
+    row.meta.author || '',
+    row.meta.source || '',
+    row.meta.url || '',
+    row.sentiment,
+    row.confidence,
+    row.model_used,
+    row.trigger_words.positive.join('; '),
+    row.trigger_words.negative.join('; '),
+    entities,
+    politicalWords,
+    row.text,
+  ].map(escapeCsvCell).join(',');
+};
+
+const downloadTextFile = (filename: string, content: string, mimeType: string) => {
+  const blob = new Blob([content], { type: mimeType });
+  const url = window.URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  window.URL.revokeObjectURL(url);
 };
 
 const Analytics: React.FC = () => {
@@ -84,6 +126,61 @@ const Analytics: React.FC = () => {
     } finally {
       setAnalyzing(false);
     }
+  };
+
+  const handleExportCsv = () => {
+    if (!analysisResult) return;
+
+    const header = [
+      'row_index',
+      'date',
+      'author',
+      'source',
+      'url',
+      'sentiment',
+      'confidence',
+      'model_used',
+      'positive_trigger_words',
+      'negative_trigger_words',
+      'entities',
+      'political_words',
+      'text',
+    ];
+
+    const csvContent = [header.join(','), ...filteredRows.map((row) => toCsvRow(row))].join('\n');
+    const filename = sanitizeFileName(
+      `${analysisResult.collection_id}_${analysisResult.job_id || 'filtered'}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`,
+    );
+
+    downloadTextFile(`${filename}.csv`, csvContent, 'text/csv;charset=utf-8');
+  };
+
+  const handleExportJson = () => {
+    if (!analysisResult) return;
+
+    const exportPayload = {
+      job_id: analysisResult.job_id,
+      collection_id: analysisResult.collection_id,
+      filename: analysisResult.filename,
+      analyzed_at: analysisResult.analyzed_at,
+      filters: {
+        sentiment: sentimentFilter,
+        entity: entityFilter,
+        trigger_word: triggerWordFilter,
+        search_query: searchQuery,
+        start_date: startDate,
+        end_date: endDate,
+        sort_by: sortBy,
+      },
+      summary: displayAgg,
+      rows: filteredRows,
+    };
+
+    const filename = sanitizeFileName(
+      `${analysisResult.collection_id}_${analysisResult.job_id || 'filtered'}_${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}`,
+    );
+
+    downloadTextFile(`${filename}.json`, JSON.stringify(exportPayload, null, 2), 'application/json;charset=utf-8');
   };
 
 
@@ -534,6 +631,24 @@ const Analytics: React.FC = () => {
                       {sortBy === 'index' ? 'sort_by_alpha' : 'monitoring'}
                     </span>
                     {sortBy === 'index' ? 'ORDER' : 'CONFIDENCE'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleExportCsv()}
+                    disabled={!analysisResult}
+                    className="flex items-center gap-1 font-mono text-[9px] text-on-surface-variant hover:text-primary px-2 py-1 border border-outline-variant/20 bg-surface-container-lowest disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[10px]">download</span>
+                    CSV
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleExportJson()}
+                    disabled={!analysisResult}
+                    className="flex items-center gap-1 font-mono text-[9px] text-on-surface-variant hover:text-primary px-2 py-1 border border-outline-variant/20 bg-surface-container-lowest disabled:opacity-50"
+                  >
+                    <span className="material-symbols-outlined text-[10px]">data_object</span>
+                    JSON
                   </button>
                 </div>
               </div>
