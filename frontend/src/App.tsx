@@ -5,7 +5,7 @@ import Analytics from './pages/Analytics';
 import Entities from './pages/Entities';
 import Scraping from './pages/Scraping';
 import Health from './pages/Health';
-import Logs from './pages/Logs';
+import LexiconManager from './pages/LexiconManager';
 
 import { AnalyticsProvider } from './context/AnalyticsContext';
 
@@ -20,7 +20,7 @@ function App() {
             <Route path="/entities" element={<Entities />} />
             <Route path="/scraping" element={<Scraping />} />
             <Route path="/health" element={<Health />} />
-            <Route path="/logs" element={<Logs />} />
+            <Route path="/lexicon" element={<LexiconManager />} />
           </Route>
         </Routes>
       </BrowserRouter>

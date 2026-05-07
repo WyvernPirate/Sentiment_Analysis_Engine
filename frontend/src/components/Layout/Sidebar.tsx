@@ -91,23 +91,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, 
         </div>
       </div>
 
-      {/* Footer */}
-      <div className="px-6 pt-6 border-t border-outline-variant/10">
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 py-2 text-on-surface-variant hover:text-on-surface transition-colors font-mono text-xs uppercase"
-        >
-          <span className="material-symbols-outlined text-sm">settings</span>
-          <span>Settings</span>
-        </button>
-        <button
-          type="button"
-          className="flex w-full items-center gap-3 py-2 text-on-surface-variant hover:text-on-surface transition-colors font-mono text-xs uppercase"
-        >
-          <span className="material-symbols-outlined text-sm">logout</span>
-          <span>Logout</span>
-        </button>
-      </div>
+      {/* Footer intentionally left minimal (removed Settings/Logout) */}
+      <div className="px-6 pt-6 border-t border-outline-variant/10" />
     </aside>
   );
 };

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
 import { useAnalytics } from '../../context/AnalyticsContext';
 
 const TopBar: React.FC = () => {
@@ -11,32 +11,7 @@ const TopBar: React.FC = () => {
     <header className="fixed top-0 left-64 right-0 z-50 border-b border-outline-variant/15 bg-surface flex justify-between items-center px-6 h-14">
       <div className="flex items-center gap-8">
         <span className="text-lg font-bold text-primary tracking-widest font-headline uppercase">SENTIMENT ENGINE // BW</span>
-        <nav className="hidden md:flex items-center gap-4 h-full">
-          <Link
-            to="/analytics"
-            className={`font-headline tracking-tight uppercase text-xs px-2 py-1 transition-colors ${
-              location.pathname === '/analytics' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
-            }`}
-          >
-            Analytics
-          </Link>
-          <Link
-            to="/entities"
-            className={`font-headline tracking-tight uppercase text-xs px-2 py-1 transition-colors ${
-              location.pathname === '/entities' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
-            }`}
-          >
-            Entities
-          </Link>
-          <Link
-            to="/health"
-            className={`font-headline tracking-tight uppercase text-xs px-2 py-1 transition-colors ${
-              location.pathname === '/health' ? 'text-primary border-b-2 border-primary' : 'text-on-surface-variant hover:bg-surface-container-high'
-            }`}
-          >
-            Health
-          </Link>
-        </nav>
+        {/* Navigation moved to Sidebar; header keeps title/search/actions only */}
       </div>
 
       <div className="flex items-center gap-4">
