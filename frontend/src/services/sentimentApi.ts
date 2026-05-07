@@ -15,6 +15,7 @@ import {
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
+// Centralized API service for all sentiment analysis related backend interactions
 export const sentimentApi = {
     async analyzeText(text: string): Promise<SentimentResult> {
         const response = await fetch(`${API_BASE_URL}/sentiment/analyze`, {
@@ -43,6 +44,7 @@ export const sentimentApi = {
         return response.json();
     },
 
+    //Political Entity Management Methods
     async listPoliticalEntities(): Promise<PoliticalEntity[]> {
         try {
             const response = await fetch(`${API_BASE_URL}/entities/`);
@@ -56,6 +58,8 @@ export const sentimentApi = {
         }
     },
 
+
+    // Add a new political entity to the system
     async addPoliticalEntity(payload: {
         entity: string;
         type: string;
@@ -78,6 +82,7 @@ export const sentimentApi = {
         }
     },
 
+    // Delete a political entity by ID
     async deletePoliticalEntity(id: number): Promise<boolean> {
         try {
             const response = await fetch(`${API_BASE_URL}/entities/${id}`, {
@@ -89,6 +94,7 @@ export const sentimentApi = {
         }
     },
 
+    // Update an existing political entity by ID
     async checkSocialHealth(): Promise<SocialHealthStatus | null> {
         try {
             const response = await fetch(`${API_BASE_URL}/social/health`);
@@ -101,6 +107,7 @@ export const sentimentApi = {
         }
     },
 
+    // List recent social media collections with metadata
     async listSocialCollections(limit = 20): Promise<SocialCollection[]> {
         try {
             const response = await fetch(`${API_BASE_URL}/social/collections?limit=${limit}`);
@@ -114,6 +121,7 @@ export const sentimentApi = {
         }
     },
 
+    // Collect social media posts based on provider, query, or direct input
     async collectSocialPosts(payload: {
         provider?: string;
         query?: string;
@@ -152,6 +160,7 @@ export const sentimentApi = {
         }
     },
 
+    // Clean a collected social media dataset using specified filter mode
     async cleanSocialCollection(payload: {
         collection_id: string;
         filter_mode: 'relaxed' | 'strict';
@@ -225,8 +234,7 @@ export const sentimentApi = {
         }
     },
 
-    // --- Batch Analysis Methods ---
-
+    //Batch Analysis Methods
     async runBatchAnalysis(collectionId: string): Promise<BatchAnalysisResult> {
         try {
             const response = await fetch(`${API_BASE_URL}/analysis/run`, {
@@ -274,6 +282,7 @@ export const sentimentApi = {
         }
     },
 
+    // List recent analysis jobs with summary info
     async listAnalysisJobs(limit = 20): Promise<AnalysisJob[]> {
         try {
             const response = await fetch(`${API_BASE_URL}/analysis/jobs?limit=${limit}`);
@@ -285,6 +294,7 @@ export const sentimentApi = {
         }
     },
 
+    // Get detailed results for a specific analysis job by ID
     async getAnalysisJob(jobId: string): Promise<BatchAnalysisResult | null> {
         try {
             const response = await fetch(`${API_BASE_URL}/analysis/jobs/${jobId}`);
@@ -295,7 +305,7 @@ export const sentimentApi = {
         }
     },
     
-    // --- Lexicon Management Methods ---
+    //Lexicon Management Methods
 
     async getLexiconStats(): Promise<any> {
         try {
@@ -307,6 +317,7 @@ export const sentimentApi = {
         }
     },
 
+    // Search lexicon entries by term with optional filters for category or language
     async searchLexicon(query: string): Promise<any[]> {
         try {
             const response = await fetch(`${API_BASE_URL}/lexicon/search?q=${encodeURIComponent(query)}`);
@@ -318,6 +329,7 @@ export const sentimentApi = {
         }
     },
 
+    // Add a new word to the lexicon with its meaning, category, and an example context sentence
     async addLexiconWord(payload: {
         word: string;
         meaning: string;
@@ -340,7 +352,7 @@ export const sentimentApi = {
         }
     },
 
-    // --- System & Diagnostics Methods ---
+    //System & Diagnostics Methods
 
     async checkSystemHealth(): Promise<SystemHealth | null> {
         try {
@@ -352,6 +364,7 @@ export const sentimentApi = {
         }
     },
 
+    // Retrieve recent system logs for monitoring and debugging purposes
     async getSystemLogs(limit = 50): Promise<string[]> {
         try {
             const response = await fetch(`${API_BASE_URL}/system/logs?limit=${limit}`);
@@ -363,6 +376,7 @@ export const sentimentApi = {
         }
     },
 
+    // Log a custom event to the system for monitoring and debugging across services
     async logSystemEvent(level: string, message: string): Promise<boolean> {
         try {
             const response = await fetch(`${API_BASE_URL}/system/event`, {
