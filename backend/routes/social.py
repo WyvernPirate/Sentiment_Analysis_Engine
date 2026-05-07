@@ -10,6 +10,7 @@ from services.social_collector_service import social_collector_service
 
 social_bp = Blueprint('social', __name__)
 
+# Health check endpoint for social media collection and cleaning services
 @social_bp.route('/health', methods=['GET'])
 def health():
     return jsonify(
@@ -25,6 +26,7 @@ def health():
         }
     )
 
+# Endpoint to collect social media posts based on a query and optional parameters, returns collection metadata and preview of collected records
 @social_bp.route('/collect', methods=['POST'])
 def collect():
     try:
@@ -62,7 +64,10 @@ def collect():
             source='x',
             query=collected.get('query', ''),
             records=collected.get('records', []),
-            run_meta=collected.get('meta', {})
+            run_meta={
+                **collected.get('meta', {}),
+                'records_preview': preview,
+            }
         )
 
         records = collected.get('records', [])
@@ -139,7 +144,7 @@ def clean():
     except Exception as exc:
         return jsonify({'error': str(exc)}), 500
 
-
+# Endpoint to accept a CSV file containing social post data and ingest it as a raw batch, with optional auto-cleaning based on filter_mode parameter
 @social_bp.route('/upload-csv', methods=['POST'])
 def upload_csv():
     """Accept a CSV file containing social post data and ingest it as a raw batch."""
@@ -171,17 +176,6 @@ def upload_csv():
             records, cleaning_report = data_cleaner_service.clean_records(records, filter_mode=filter_mode)
             was_cleaned = True
 
-        log_entry = raw_data_manager.save_raw_batch(
-            source='csv',
-            query=parsed.get('query', ''),
-            records=records,
-            run_meta={
-                **parsed.get('meta', {}),
-                'auto_cleaned': was_cleaned,
-                'cleaning_report': cleaning_report
-            }
-        )
-
         # Build preview (same shape as /collect)
         preview = []
         for record in records[:5]:
@@ -193,6 +187,18 @@ def upload_csv():
                 'text_raw': (record.get('text_raw', '') or '')[:220],
                 'public_metrics': record.get('public_metrics', {}),
             })
+
+        log_entry = raw_data_manager.save_raw_batch(
+            source='csv',
+            query=parsed.get('query', ''),
+            records=records,
+            run_meta={
+                **parsed.get('meta', {}),
+                'auto_cleaned': was_cleaned,
+                'cleaning_report': cleaning_report,
+                'records_preview': preview,
+            }
+        )
 
         return jsonify({
             'collection_id': log_entry['collection_id'],

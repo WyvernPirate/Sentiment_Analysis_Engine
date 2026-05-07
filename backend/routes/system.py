@@ -3,12 +3,14 @@ from services.system_service import SystemService
 
 system_bp = Blueprint('system', __name__)
 
+# Health check endpoint for overall system diagnostics
 @system_bp.route('/health', methods=['GET'])
 def get_health():
     """Returns detailed system health diagnostics."""
     health_data = SystemService.get_system_health()
     return jsonify(health_data)
 
+# Endpoint to retrieve recent system logs for monitoring and debugging purposes
 @system_bp.route('/logs', methods=['GET'])
 def get_logs():
     """Returns recent system logs."""
@@ -19,6 +21,7 @@ def get_logs():
         "count": len(logs)
     })
 
+# Endpoint for services/frontend to log custom events, useful for monitoring and debugging across the system
 @system_bp.route('/event', methods=['POST'])
 def log_event():
     """Endpoint for services/frontend to log custom events."""
