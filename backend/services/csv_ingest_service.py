@@ -34,7 +34,8 @@ ID_COLUMN_NAMES = [
     'id', 'post_id', 'tweet_id', 'source_post_id', 'status_id',
 ]
 
-
+# For messy scraper outputs (Facebook), we may need to stitch together text from multiple columns,
+# so we look for common technical header patterns to identify them.
 class CsvIngestService:
 
     def _detect_column(self, headers: List[str], candidates: List[str]) -> Optional[str]:
@@ -62,6 +63,7 @@ class CsvIngestService:
 
         return best_col
 
+    # Heuristic to determine if a CSV is a URL-only list (no substantive text column)
     def _is_url_only_csv(self, headers: List[str], rows: List[Dict]) -> bool:
         """
         Check if the CSV is a URL-only list (no substantive text column).
@@ -89,6 +91,7 @@ class CsvIngestService:
 
         return False
 
+    # Main method to parse CSV content and return normalized records
     def detect_csv_type(self, file_content: str) -> Dict:
         """
         Analyze CSV content and return detection results.
@@ -145,7 +148,6 @@ class CsvIngestService:
             fragments.append(val)
         
         # Heuristic: Find the sequence that looks like the main content
-        # Usually, the longest fragment or the cluster of fragments
         if not fragments:
             return ""
             
