@@ -10,12 +10,18 @@ const DashboardLayout: React.FC = () => {
   const isEntities = location.pathname === '/entities';
   const isScraping = location.pathname === '/scraping';
   const isHealth = location.pathname === '/health';
-  const isLogs = location.pathname === '/logs';
+  const isLexicon = location.pathname === '/lexicon';
 
   return (
     <div className="bg-surface text-on-surface min-h-screen flex">
       {/* Sidebar */}
-      <Sidebar isAnalytics={isAnalytics} isEntities={isEntities} isScraping={isScraping} isHealth={isHealth} isLogs={isLogs} />
+      <Sidebar 
+        isAnalytics={isAnalytics} 
+        isEntities={isEntities} 
+        isScraping={isScraping} 
+        isHealth={isHealth} 
+        isLexicon={isLexicon}
+      />
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col">

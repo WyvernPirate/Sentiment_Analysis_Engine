@@ -6,10 +6,10 @@ interface SidebarProps {
   isEntities: boolean;
   isScraping: boolean;
   isHealth: boolean;
-  isLogs: boolean;
+  isLexicon: boolean;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, isHealth, isLogs }) => {
+const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, isHealth, isLexicon }) => {
   return (
     <aside className="fixed left-0 top-0 h-full w-64 border-r border-outline-variant/15 bg-surface-container-low flex flex-col py-8 z-40">
       {/* Header */}
@@ -65,19 +65,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, 
           }`}
         >
           <span className="material-symbols-outlined">monitor_heart</span>
-          <span>Data Health</span>
+          <span>System Diagnostics</span>
         </Link>
-
+        
         <Link
-          to="/logs"
+          to="/lexicon"
           className={`flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
-            isLogs
+            isLexicon
               ? 'text-primary border-l-2 border-primary bg-surface-container-high'
               : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
           }`}
         >
-          <span className="material-symbols-outlined">terminal</span>
-          <span>System Logs</span>
+          <span className="material-symbols-outlined">dictionary</span>
+          <span>Lexicon Pool</span>
         </Link>
       </nav>
 
