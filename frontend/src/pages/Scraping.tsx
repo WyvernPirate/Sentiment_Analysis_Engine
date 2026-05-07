@@ -352,8 +352,8 @@ const Scraping: React.FC = () => {
         </div>
 
         {/* Primary Controls: CSV Upload & Query */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <section className="lg:col-span-2 bg-surface-container-low border border-outline-variant/10 p-5 space-y-5">
+        <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+          <section className="lg:col-span-3 bg-surface-container-low border border-outline-variant/10 p-5 space-y-5">
             <div className="flex items-center justify-between">
               <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-primary flex items-center gap-2">
                 <span className="material-symbols-outlined text-sm">input</span>
@@ -370,7 +370,7 @@ const Scraping: React.FC = () => {
             </div>
 
             {/* Drag & Drop style zone (simplified) */}
-            <div className={`border-2 border-dashed p-6 transition-colors ${csvFileName ? 'border-secondary/50 bg-secondary/5' : 'border-outline-variant/30 bg-surface-container-lowest'}`}>
+            <div className={`relative border-2 border-dashed p-6 transition-colors ${csvFileName ? 'border-secondary/50 bg-secondary/5' : 'border-outline-variant/30 bg-surface-container-lowest'}`}>
               <div className="flex flex-col items-center justify-center text-center space-y-3">
                 {!csvFileName ? (
                   <>
@@ -483,8 +483,8 @@ const Scraping: React.FC = () => {
             )}
           </section>
 
-          {/* Right Column: Collection Status & Metrics */}
-          <section className="space-y-6">
+          {/* Right Column: Metrics & Status */}
+          <section className="space-y-6 lg:col-span-1">
             <div className="bg-surface-container-low border border-outline-variant/10 p-4">
               <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface mb-4">Pipeline Metrics</h2>
               <div className="space-y-4">
@@ -503,20 +503,18 @@ const Scraping: React.FC = () => {
               </div>
             </div>
 
-            <div className="bg-surface-container-lowest border border-outline-variant/20 p-4 h-[250px] overflow-hidden flex flex-col">
+            <div className="bg-surface-container-lowest border border-outline-variant/20 p-4 flex flex-col">
               <div className="flex items-center justify-between mb-3 border-b border-outline-variant/10 pb-2">
-                <h3 className="font-mono text-[10px] font-bold text-primary uppercase">System Terminal</h3>
-                <span className="text-[10px] font-mono text-outline-variant/50 animate-pulse italic">LISTENING...</span>
+                <h3 className="font-mono text-[10px] font-bold text-primary uppercase">Activity Log</h3>
+                <span className="text-[10px] font-mono text-outline-variant/50 animate-pulse italic">LIVE</span>
               </div>
-              <div className="flex-1 space-y-2 font-mono text-[9px] overflow-y-auto scrollbar-hide">
+              <div className="space-y-1.5 font-mono text-[9px] overflow-y-auto scrollbar-hide">
                 {recentEvents.map((evt, i) => (
-                  <p key={i} className={`${i === 0 ? 'text-secondary font-bold' : 'text-on-surface-variant opacity-70'}`}>
-                    <span className="text-outline-variant/40 mr-2">[{new Date().toLocaleDateString()}]</span>
+                  <p key={i} className={`${i === 0 ? 'text-secondary font-bold' : 'text-on-surface-variant'}`}>
                     {evt}
                   </p>
                 ))}
-                {loading && <p className="text-primary animate-pulse underline italic">{">>>"} FETCHING_REMOTE_ASSETS...</p>}
-                <p className="text-outline-variant/30 italic mt-4">// END OF LOG // TERMINAL READY</p>
+                {loading && <p className="text-primary animate-pulse italic mt-2">SYNCING...</p>}
               </div>
             </div>
           </section>
@@ -526,8 +524,8 @@ const Scraping: React.FC = () => {
         <section className="bg-surface-container-low border border-outline-variant/10 p-5">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Data Lake Explorer</h2>
-              <p className="font-mono text-[9px] text-on-surface-variant mt-1 italic">STORAGE_BUCKET: /data/raw_collections/*.json</p>
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Recent Collections</h2>
+              <p className="font-mono text-[9px] text-on-surface-variant mt-1">Collected batches ready for analysis</p>
             </div>
             <div className="flex gap-3">
                <select
@@ -601,14 +599,10 @@ const Scraping: React.FC = () => {
         {csvPreviewRows.length > 0 && (
           <section className="bg-surface-container-low border border-outline-variant/10 p-5 space-y-4 animate-in fade-in slide-in-from-bottom-4">
              <div className="flex items-center justify-between border-b border-outline-variant/10 pb-3">
-                <div className="flex items-center gap-3">
-                   <span className="material-symbols-outlined text-secondary">preview</span>
-                   <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Data Preview Buffer</h2>
-                </div>
+                <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-on-surface">Parsed Records Preview</h2>
                 <div className="flex gap-4 font-mono text-[10px]">
-                  <span className="text-secondary bg-secondary/10 px-2 py-0.5">VALID: {csvRows.length}</span>
-                  <span className="text-tertiary bg-tertiary/10 px-2 py-0.5">FILTERED: {invalidCsvCount}</span>
-                  <span className="text-on-surface-variant border border-outline-variant/20 px-2 py-0.5">TOTAL: {csvPreviewRows.length}</span>
+                  <span className="text-secondary bg-secondary/10 px-2 py-0.5 rounded">VALID: {csvRows.length}</span>
+                  <span className="text-tertiary bg-tertiary/10 px-2 py-0.5 rounded">FILTERED: {invalidCsvCount}</span>
                 </div>
              </div>
              <div className="overflow-x-auto">
@@ -637,7 +631,7 @@ const Scraping: React.FC = () => {
                   </tbody>
                 </table>
              </div>
-             <p className="font-mono text-[9px] text-outline-variant/50 italic text-right">* Previewing first 10 buffer segments. All valid records will be committed on ingestion.</p>
+             <p className="font-mono text-[9px] text-outline-variant/50 italic text-right">* Previewing first 10 records. {csvPreviewRows.length} total parsed.</p>
           </section>
         )}
 

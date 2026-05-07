@@ -1,9 +1,7 @@
 import React, { useState } from 'react';
-import { useLocation } from 'react-router-dom';
 import { useAnalytics } from '../../context/AnalyticsContext';
 
 const TopBar: React.FC = () => {
-  const location = useLocation();
   const { startDate, setStartDate, endDate, setEndDate } = useAnalytics();
   const [showDatePicker, setShowDatePicker] = useState(false);
 
