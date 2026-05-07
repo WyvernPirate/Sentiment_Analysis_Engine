@@ -60,6 +60,7 @@ def collect():
             actor_input=actor_input
         )
 
+        # Build a preview of the first few records for logging and response purposes
         records = collected.get('records', [])
         preview = []
         for record in records[:5]:
