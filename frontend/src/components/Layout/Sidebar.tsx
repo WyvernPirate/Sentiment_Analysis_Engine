@@ -91,7 +91,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, 
         </div>
       </div>
 
-      {/* Footer */}
+      {/* Footer intentionally left minimal (removed Settings/Logout) */}
       <div className="px-6 pt-6 border-t border-outline-variant/10" />
     </aside>
   );

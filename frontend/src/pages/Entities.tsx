@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
 import { PoliticalEntity } from '../types/sentiment';
 
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 const FALLBACK_ENTITIES = [
   { name: 'BDP', aliases: 19, mentions24h: 1282, netSentiment: '+0.55', risk: 'LOW' },
   { name: 'UDC', aliases: 14, mentions24h: 1033, netSentiment: '-0.12', risk: 'MED' },
@@ -15,6 +17,81 @@ const Entities: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newEntity, setNewEntity] = useState({ entity: '', type: 'PARTY', full_name: '', description: '' });
+  const [liveFeed, setLiveFeed] = useState<Array<{
+    time: string;
+    provider: string;
+    query: string;
+    count: number;
+    entities: Array<{ name: string; count: number }>;
+    snippets: string[];
+  }>>([]);
+
+  const trackedEntities = useMemo(
+    () => apiEntities.map((entity) => entity.entity.trim()).filter(Boolean),
+    [apiEntities]
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadFeed = async () => {
+      try {
+        const collections = await sentimentApi.listSocialCollections(10);
+
+        const feed = collections.map((collection) => {
+          const meta = (collection.run_meta || {}) as Record<string, unknown>;
+          const preview = Array.isArray(meta.records_preview) ? (meta.records_preview as Array<Record<string, unknown>>) : [];
+          const textPool = [collection.query || '']
+            .concat(
+              preview.map((record) => String(record.text_raw || record.text || record.content || ''))
+            )
+            .join(' ')
+            .toLowerCase();
+
+          const entityCounts = new Map<string, number>();
+          trackedEntities.forEach((entity) => {
+            const regex = new RegExp(`\\b${escapeRegExp(entity)}\\b`, 'i');
+            const matchesInQuery = regex.test(collection.query || '');
+            const matchesInPreview = preview.some((record) => {
+              const recordText = String(record.text_raw || record.text || record.content || '');
+              return regex.test(recordText);
+            });
+
+            if (matchesInQuery || matchesInPreview || textPool.includes(entity.toLowerCase())) {
+              const previewMentions = preview.reduce((count, record) => {
+                const recordText = String(record.text_raw || record.text || record.content || '');
+                return count + (regex.test(recordText) ? 1 : 0);
+              }, 0);
+              entityCounts.set(entity, Math.max(1, previewMentions));
+            }
+          });
+
+          const snippets = preview
+            .map((record) => String(record.text_raw || record.text || record.content || '').trim())
+            .filter(Boolean)
+            .slice(0, 2)
+            .map((snippet) => (snippet.length > 150 ? `${snippet.slice(0, 150)}...` : snippet));
+
+          return {
+            time: collection.collected_at_utc || '',
+            provider: collection.source || 'x',
+            query: collection.query || '',
+            count: collection.count || 0,
+            entities: Array.from(entityCounts.entries()).map(([name, count]) => ({ name, count })),
+            snippets,
+          };
+        });
+
+        if (mounted) setLiveFeed(feed.slice(0, 12));
+      } catch {
+        if (mounted) setLiveFeed([]);
+      }
+    };
+
+    void loadFeed();
+    const id = setInterval(() => { void loadFeed(); }, 5000);
+    return () => { mounted = false; clearInterval(id); };
+  }, [trackedEntities]);
 
   const loadEntities = async () => {
     setLoading(true);
@@ -232,38 +309,7 @@ const Entities: React.FC = () => {
           {loading && <p className="text-on-surface-variant font-mono text-[10px] mt-3 animate-pulse">SYNCING_ENTITY_REGISTRY...</p>}
           </div>
 
-          <div className="col-span-12 lg:col-span-4 bg-surface-container-low border border-outline-variant/10 p-4">
-            <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Ingestion Protocols</h2>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-surface-container-high border-l-2 border-primary">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-tighter">TWITTER_API_V2</p>
-                  <p className="text-[10px] text-on-surface-variant font-mono">Status: Stream Active</p>
-                </div>
-                <div className="w-9 h-5 bg-secondary flex items-center px-0.5">
-                  <div className="w-3 h-3 bg-on-secondary"></div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-surface-container-high border-l-2 border-outline-variant/40">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-tighter">FACEBOOK_SELENIUM</p>
-                  <p className="text-[10px] text-on-surface-variant font-mono">Status: Headless Sleep</p>
-                </div>
-                <div className="w-9 h-5 bg-surface-container-highest flex items-center justify-end px-0.5">
-                  <div className="w-3 h-3 bg-outline"></div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-surface-container-high border-l-2 border-primary">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-tighter">LOCAL_NEWS_RSS</p>
-                  <p className="text-[10px] text-on-surface-variant font-mono">Status: 24 Sinks Active</p>
-                </div>
-                <div className="w-9 h-5 bg-secondary flex items-center px-0.5">
-                  <div className="w-3 h-3 bg-on-secondary"></div>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Ingestion Protocols removed - simplified layout */}
         </section>
 
         <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -283,10 +329,40 @@ const Entities: React.FC = () => {
 
         <section className="bg-surface-container-low border border-outline-variant/15 p-4">
           <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-3">Live Signal Feed</h2>
-          <div className="space-y-2 font-mono text-[11px]">
-            <p className="text-on-surface-variant hover:text-on-surface transition-colors">[14:22:01] [INGEST_OK] Source: @Twitter_BW - Entity: UDC - Sentiment: POSITIVE - Mentions: 1.2k</p>
-            <p className="text-on-surface-variant hover:text-on-surface transition-colors">[14:21:58] [ANOMALY_DET] Source: Facebook_BW - Keyword match: Election Volatility - Severity: MEDIUM</p>
-            <p className="text-on-surface-variant hover:text-on-surface transition-colors">[14:21:45] [INGEST_OK] Source: DailyNews_BW - Entity: BDP - Sentiment: NEUTRAL - Mentions: 450</p>
+          <div className="space-y-3 font-mono text-[11px]">
+            {liveFeed.length === 0 && <p className="text-on-surface-variant">No live signals yet.</p>}
+            {liveFeed.map((entry, idx) => (
+              <div key={`${entry.time}-${idx}`} className="border border-outline-variant/10 bg-surface-container-high/60 p-3 space-y-2">
+                <div className="flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-widest text-on-surface-variant">
+                  <span>{entry.time ? entry.time.replace('T', ' ').split('.')[0] : '--'}</span>
+                  <span className="text-primary">{entry.provider}</span>
+                  <span>count {entry.count}</span>
+                </div>
+                <p className="text-on-surface text-[11px] leading-5">
+                  Query: {entry.query || 'N/A'}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {entry.entities.length > 0 ? (
+                    entry.entities.map((entity) => (
+                      <span key={entity.name} className="px-2 py-1 bg-primary/15 text-primary border border-primary/20 text-[10px] uppercase tracking-widest">
+                        {entity.name} x{entity.count}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-on-surface-variant text-[10px] uppercase tracking-widest">No entity match yet</span>
+                  )}
+                </div>
+                {entry.snippets.length > 0 && (
+                  <div className="space-y-1">
+                    {entry.snippets.map((snippet, snippetIndex) => (
+                      <p key={`${entry.time}-${snippetIndex}`} className="text-on-surface-variant text-[10px] leading-5">
+                        {snippet}
+                      </p>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
         </section>
       </div>
