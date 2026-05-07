@@ -152,3 +152,22 @@ export interface AnalysisJob {
         negative: number;
     };
 }
+export interface SystemHealth {
+    status: string;
+    timestamp: number;
+    os: {
+        system: string;
+        release: string;
+        machine: string;
+    };
+    resources: {
+        cpu_usage: string;
+        memory_usage: string;
+        disk_usage: string;
+    };
+    services: Array<{
+        name: string;
+        status: string;
+        latency: string;
+    }>;
+}

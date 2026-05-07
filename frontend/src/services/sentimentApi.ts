@@ -10,6 +10,7 @@ import {
     SocialCleanResponse,
     BatchAnalysisResult,
     AnalysisJob,
+    SystemHealth,
 } from '../types/sentiment';
 
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
@@ -291,6 +292,87 @@ export const sentimentApi = {
             return (await response.json()) as BatchAnalysisResult;
         } catch {
             return null;
+        }
+    },
+    
+    // --- Lexicon Management Methods ---
+
+    async getLexiconStats(): Promise<any> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lexicon/stats`);
+            if (!response.ok) return null;
+            return response.json();
+        } catch {
+            return null;
+        }
+    },
+
+    async searchLexicon(query: string): Promise<any[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lexicon/search?q=${encodeURIComponent(query)}`);
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data.results) ? data.results : [];
+        } catch {
+            return [];
+        }
+    },
+
+    async addLexiconWord(payload: {
+        word: string;
+        meaning: string;
+        category: string;
+        context_sentence: string;
+    }): Promise<{ ok: boolean; message: string }> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/lexicon/add`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload),
+            });
+            const data = await response.json();
+            if (!response.ok) {
+                return { ok: false, message: data.error || 'Failed to add word' };
+            }
+            return { ok: true, message: data.message || 'Word added successfully' };
+        } catch {
+            return { ok: false, message: 'Failed to add word' };
+        }
+    },
+
+    // --- System & Diagnostics Methods ---
+
+    async checkSystemHealth(): Promise<SystemHealth | null> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/system/health`);
+            if (!response.ok) return null;
+            return response.json();
+        } catch {
+            return null;
+        }
+    },
+
+    async getSystemLogs(limit = 50): Promise<string[]> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/system/logs?limit=${limit}`);
+            if (!response.ok) return [];
+            const data = await response.json();
+            return Array.isArray(data.logs) ? data.logs : [];
+        } catch {
+            return [];
+        }
+    },
+
+    async logSystemEvent(level: string, message: string): Promise<boolean> {
+        try {
+            const response = await fetch(`${API_BASE_URL}/system/event`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ level, message }),
+            });
+            return response.ok;
+        } catch {
+            return false;
         }
     },
 };
