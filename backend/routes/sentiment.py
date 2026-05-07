@@ -11,12 +11,7 @@ sentiment_bp = Blueprint('sentiment', __name__)
 
 @sentiment_bp.route('/test-examples', methods=['GET'])
 def test_examples():
-    """
-    Test examples endpoint for frontend quick validation
-    
-    Returns sample English texts with expected sentiment labels.
-    Used by frontend to verify backend is responding correctly.
-    """
+   
     logger.info("Serving test examples")
     return jsonify({
         "examples": [
@@ -120,6 +115,6 @@ def analyze():
         })
 
     except Exception as e:
-        # Log error, return 500, allows frontend to raise gracefully
+        # Log error, return 500, allows frontend to show
         logger.error(f"Sentiment analysis error: {str(e)}")
         return jsonify({"error": str(e)}), 500
