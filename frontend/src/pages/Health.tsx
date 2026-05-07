@@ -1,167 +1,167 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
-import { HealthStatus } from '../types/sentiment';
+import { SystemHealth } from '../types/sentiment';
 
 const Health: React.FC = () => {
-  const [health, setHealth] = useState<HealthStatus | null>(null);
+  const [health, setHealth] = useState<SystemHealth | null>(null);
+  const [logs, setLogs] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
+  const [command, setCommand] = useState('');
+  const logEndRef = useRef<HTMLDivElement>(null);
+
+  const fetchDiagnostics = async () => {
+    try {
+      const [healthData, logData] = await Promise.all([
+        sentimentApi.checkSystemHealth(),
+        sentimentApi.getSystemLogs(100)
+      ]);
+      setHealth(healthData);
+      setLogs(logData);
+    } catch (err) {
+      console.error("Failed to fetch diagnostics", err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const loadHealth = async () => {
-      try {
-        const data = await sentimentApi.checkHealth();
-        setHealth(data);
-      } catch {
-        setHealth(null);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadHealth();
+    fetchDiagnostics();
+    const interval = setInterval(fetchDiagnostics, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  const checks = [
-    { name: 'API_GATEWAY', status: 'PASS', latency: '42ms' },
-    { name: 'NLP_SENTIMENT_ENGINE', status: 'PASS', latency: '58ms' },
-    { name: 'ENTITY_MATCHER', status: 'WARN', latency: '113ms' },
-    { name: 'DATA_CLEANER_PIPELINE', status: 'PASS', latency: '64ms' },
-    { name: 'LEXICON_STORAGE', status: 'PASS', latency: '22ms' },
-  ];
+  useEffect(() => {
+    logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [logs]);
+
+  const handleCommand = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!command.trim()) return;
+    
+    await sentimentApi.logSystemEvent('INFO', `Manual Command Executed: ${command}`);
+    setCommand('');
+    fetchDiagnostics();
+  };
 
   return (
     <div className="ml-64 pt-14 min-h-screen bg-surface">
       <div className="p-6 space-y-6">
         <div className="flex items-end justify-between border-b border-outline-variant/10 pb-4">
           <div>
-            <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Data Health</h1>
-            <p className="text-on-surface-variant font-mono text-xs mt-2">SYSTEM_DIAGNOSTICS</p>
+            <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">System Diagnostics</h1>
+            <p className="text-on-surface-variant font-mono text-xs mt-2">HEALTH_MONITOR // LOG_STREAM</p>
           </div>
-          <button className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all">
-            <span className="material-symbols-outlined text-sm">health_and_safety</span>
-            Run Diagnostics
+          <button 
+            onClick={() => { setLoading(true); fetchDiagnostics(); }}
+            className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all active:translate-y-0.5"
+          >
+            <span className="material-symbols-outlined text-sm">refresh</span>
+            Refresh Stack
           </button>
         </div>
 
         <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Pipeline Uptime</p>
-            <p className="text-3xl font-headline font-bold text-secondary mt-2">99.92%</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">CPU Load</p>
+            <p className="text-3xl font-headline font-bold text-secondary mt-2">{health?.resources.cpu_usage || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Duplicate Ratio</p>
-            <p className="text-3xl font-headline font-bold text-primary mt-2">0.8%</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Memory Usage</p>
+            <p className="text-3xl font-headline font-bold text-primary mt-2">{health?.resources.memory_usage || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Setswana Lexicon</p>
-            <p className="text-3xl font-headline font-bold text-on-surface mt-2">{health?.lexicon_stats?.setswana_words ?? '--'}</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Disk Capacity</p>
+            <p className="text-3xl font-headline font-bold text-on-surface mt-2">{health?.resources.disk_usage || '--'}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Political Terms</p>
-            <p className="text-3xl font-headline font-bold text-tertiary mt-2">{health?.lexicon_stats?.political_terms ?? '--'}</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">System Status</p>
+            <p className={`text-3xl font-headline font-bold mt-2 ${health?.status === 'healthy' ? 'text-secondary' : 'text-error'}`}>
+              {health?.status.toUpperCase() || 'OFFLINE'}
+            </p>
           </div>
         </section>
 
-        <section className="bg-surface-container-low border border-outline-variant/10 p-4">
-          <p className="font-mono text-[10px] uppercase text-on-surface-variant">API Health Status</p>
-          <p className={`font-headline text-xl mt-2 ${health?.status === 'healthy' ? 'text-secondary' : 'text-tertiary'}`}>
-            {loading ? 'CHECKING...' : health?.status?.toUpperCase() || 'UNREACHABLE'}
-          </p>
-        </section>
-
-        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <div className="lg:col-span-2 bg-surface-container-low border border-outline-variant/10 p-4">
-            <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Service Diagnostics</h2>
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
-                    <th className="pb-2 font-normal">Service</th>
-                    <th className="pb-2 font-normal text-right">Status</th>
-                    <th className="pb-2 font-normal text-right">Latency</th>
-                  </tr>
-                </thead>
-                <tbody className="font-mono text-[10px]">
-                  {checks.map((check) => (
-                    <tr key={check.name} className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors">
-                      <td className="py-3 text-primary">{check.name}</td>
-                      <td className={`py-3 text-right ${check.status === 'PASS' ? 'text-secondary' : 'text-tertiary'}`}>
-                        {check.status}
-                      </td>
-                      <td className="py-3 text-right">{check.latency}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-1 bg-surface-container-low border border-outline-variant/10 p-4 h-fit">
+            <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Service Matrix</h2>
+            <div className="space-y-3">
+              {health?.services.map((service) => (
+                <div key={service.name} className="flex items-center justify-between p-2 border-b border-outline-variant/5">
+                  <span className="font-mono text-[10px] text-primary">{service.name}</span>
+                  <div className="flex items-center gap-4">
+                    <span className="font-mono text-[9px] text-on-surface-variant">{service.latency}</span>
+                    <span className={`px-1.5 py-0.5 font-mono text-[9px] ${service.status === 'PASS' ? 'bg-secondary/10 text-secondary' : 'bg-error/10 text-error'}`}>
+                      {service.status}
+                    </span>
+                  </div>
+                </div>
+              ))}
             </div>
-          </div>
-
-          <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Data Quality Score</h2>
-            <div className="space-y-4">
-              <div>
-                <div className="flex justify-between font-mono text-[10px] mb-1">
-                  <span>Schema Integrity</span>
-                  <span className="text-secondary">98%</span>
+            
+            <div className="mt-8 pt-4 border-t border-outline-variant/10">
+              <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Host Environment</h2>
+              <div className="space-y-2 font-mono text-[10px]">
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">OS:</span>
+                  <span className="text-on-surface">{health?.os.system} {health?.os.machine}</span>
                 </div>
-                <div className="h-1 bg-surface-container-highest">
-                  <div className="h-1 bg-secondary" style={{ width: '98%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between font-mono text-[10px] mb-1">
-                  <span>Language Coverage</span>
-                  <span className="text-primary">84%</span>
-                </div>
-                <div className="h-1 bg-surface-container-highest">
-                  <div className="h-1 bg-primary" style={{ width: '84%' }}></div>
-                </div>
-              </div>
-              <div>
-                <div className="flex justify-between font-mono text-[10px] mb-1">
-                  <span>Label Confidence</span>
-                  <span className="text-on-surface">79%</span>
-                </div>
-                <div className="h-1 bg-surface-container-highest">
-                  <div className="h-1 bg-on-surface" style={{ width: '79%' }}></div>
+                <div className="flex justify-between">
+                  <span className="text-on-surface-variant">KERNEL:</span>
+                  <span className="text-on-surface">{health?.os.release}</span>
                 </div>
               </div>
             </div>
           </div>
-        </section>
 
-        <section className="bg-black border border-outline-variant/20 flex flex-col">
-          <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant/20 flex justify-between items-center">
-            <div className="flex items-center gap-3">
-              <div className="flex gap-1.5">
-                <div className="w-2.5 h-2.5 bg-error-container/40"></div>
-                <div className="w-2.5 h-2.5 bg-primary/40"></div>
-                <div className="w-2.5 h-2.5 bg-secondary/40"></div>
+          <div className="lg:col-span-2 bg-black border border-outline-variant/20 flex flex-col min-h-[500px]">
+            <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant/20 flex justify-between items-center">
+              <div className="flex items-center gap-3">
+                <div className="flex gap-1.5">
+                  <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
+                  <div className="w-2 h-2 rounded-full bg-primary"></div>
+                  <div className="w-2 h-2 rounded-full bg-secondary"></div>
+                </div>
+                <span className="text-[10px] font-mono text-on-surface-variant tracking-wider uppercase">Live System Logs</span>
               </div>
-              <span className="text-[10px] font-mono text-on-surface-variant tracking-wider">LIVE_LOG_STREAM // tty1</span>
+              <div className="flex gap-4">
+                <span className="text-[9px] font-mono text-secondary uppercase animate-pulse">STREAMING</span>
+                <span className="text-[9px] font-mono text-on-surface-variant uppercase">FILTER: ALL</span>
+              </div>
             </div>
-            <div className="flex gap-4">
-              <span className="text-[10px] font-mono text-secondary uppercase">recording</span>
-              <span className="text-[10px] font-mono text-on-surface-variant">FILTER: ALL_EVENTS</span>
+            
+            <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1 custom-scrollbar">
+              {logs.length > 0 ? (
+                logs.map((log, idx) => {
+                  const isError = log.includes('[ERROR]');
+                  const isWarn = log.includes('[WARN]');
+                  return (
+                    <p key={idx} className="text-on-surface-variant break-all">
+                      <span className="opacity-50">{log.split(']')[0]}]</span>
+                      <span className={isError ? 'text-error' : isWarn ? 'text-tertiary' : 'text-secondary'}>
+                        {log.match(/\[(INFO|ERROR|WARN|WARNING)\]/)?.[0] || ''}
+                      </span>
+                      <span className="ml-1">{log.split(/\[(INFO|ERROR|WARN|WARNING)\]/)[2] || log.split('] ').slice(1).join('] ')}</span>
+                    </p>
+                  );
+                })
+              ) : (
+                <p className="text-on-surface-variant/30 italic">Waiting for log stream...</p>
+              )}
+              <div ref={logEndRef} />
             </div>
+
+            <form onSubmit={handleCommand} className="bg-surface-container-high px-4 py-1.5 flex items-center border-t border-outline-variant/20">
+              <span className="text-primary font-mono text-[10px] mr-2">root@sentiment:~$</span>
+              <input
+                type="text"
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+                placeholder="execute diagnostic command..."
+                className="bg-transparent border-none focus:ring-0 text-[10px] font-mono w-full p-0 text-on-surface placeholder-on-surface-variant/40"
+              />
+            </form>
           </div>
-          <div className="h-80 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1">
-            <p className="text-on-surface-variant">[2023-10-27 14:02:11] <span className="text-secondary">[INFO]</span> Pipeline connection established to source: RSS_GOV_BW</p>
-            <p className="text-on-surface-variant">[2023-10-27 14:02:13] <span className="text-secondary">[INFO]</span> Batch 0x9f4a processed: 42 entities extracted.</p>
-            <p className="text-on-surface-variant">[2023-10-27 14:02:45] <span className="text-tertiary">[WARN]</span> Memory threshold reached (82%). Triggering garbage_collection_v2.</p>
-            <p className="text-on-surface-variant">[2023-10-27 14:03:01] <span className="text-error">[ERR!]</span> JSON_PARSE_ERROR at source TWITTER_STREAM_ALPHA</p>
-            <p className="text-on-surface-variant">[2023-10-27 14:03:08] <span className="text-secondary">[INFO]</span> Cache cleared. 1.4GB freed in 12ms.</p>
-            <p className="text-on-surface-variant">[2023-10-27 14:03:44] <span className="text-secondary">[INFO]</span> Sentiment update: +0.04 [Sovereign_Stability_Index]</p>
-          </div>
-          <div className="bg-surface-container-high px-4 py-1.5 flex items-center border-t border-outline-variant/20">
-            <span className="text-primary font-mono text-[10px] mr-2">admin@sovereign:~$</span>
-            <input
-              type="text"
-              placeholder="type command and press enter..."
-              className="bg-transparent border-none focus:ring-0 text-[10px] font-mono w-full p-0 text-on-surface placeholder-on-surface-variant/40"
-            />
-          </div>
-        </section>
+        </div>
       </div>
     </div>
   );
