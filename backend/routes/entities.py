@@ -11,7 +11,7 @@ def list_entities():
     entities = political_entity_service.list_entities(entity_type)
     return jsonify({'entities': entities, 'count': len(entities)})
 
-
+# Endpoint to add a new political entity
 @entities_bp.route('/add', methods=['POST'])
 def add_entity():
     payload = request.get_json() or {}
