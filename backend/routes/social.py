@@ -60,16 +60,6 @@ def collect():
             actor_input=actor_input
         )
 
-        log_entry = raw_data_manager.save_raw_batch(
-            source='x',
-            query=collected.get('query', ''),
-            records=collected.get('records', []),
-            run_meta={
-                **collected.get('meta', {}),
-                'records_preview': preview,
-            }
-        )
-
         records = collected.get('records', [])
         preview = []
         for record in records[:5]:
@@ -83,6 +73,16 @@ def collect():
                     'public_metrics': record.get('public_metrics', {})
                 }
             )
+
+        log_entry = raw_data_manager.save_raw_batch(
+            source='x',
+            query=collected.get('query', ''),
+            records=records,
+            run_meta={
+                **collected.get('meta', {}),
+                'records_preview': preview,
+            }
+        )
 
         return jsonify(
             {
