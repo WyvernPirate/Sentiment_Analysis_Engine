@@ -30,6 +30,16 @@ def setup_logger():
     if not logger.handlers:
         logger.addHandler(file_handler)
         logger.addHandler(console_handler)
+
+    # Mirror Werkzeug access logs into the same file so /api/system/logs can surface request lines.
+    werkzeug_logger = logging.getLogger('werkzeug')
+    werkzeug_logger.setLevel(logging.INFO)
+    if not any(getattr(handler, '_sentiment_engine_access_handler', False) for handler in werkzeug_logger.handlers):
+        access_handler = logging.FileHandler(LOG_FILE)
+        access_handler.setLevel(logging.INFO)
+        access_handler.setFormatter(logging.Formatter('%(message)s'))
+        access_handler._sentiment_engine_access_handler = True
+        werkzeug_logger.addHandler(access_handler)
     
     return logger
 

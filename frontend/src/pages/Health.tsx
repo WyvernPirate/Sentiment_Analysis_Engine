@@ -53,10 +53,11 @@ const Health: React.FC = () => {
           </div>
           <button 
             onClick={() => { setLoading(true); fetchDiagnostics(); }}
+            disabled={loading}
             className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all active:translate-y-0.5"
           >
             <span className="material-symbols-outlined text-sm">refresh</span>
-            Refresh Stack
+            {loading ? 'Refreshing...' : 'Refresh Stack'}
           </button>
         </div>
 
@@ -113,7 +114,7 @@ const Health: React.FC = () => {
             </div>
           </div>
 
-          <div className="lg:col-span-2 bg-black border border-outline-variant/20 flex flex-col min-h-[500px]">
+          <div className="lg:col-span-2 bg-black border border-outline-variant/20 flex h-[calc(100vh-8.5rem)] min-h-[500px] flex-col overflow-hidden">
             <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant/20 flex justify-between items-center">
               <div className="flex items-center gap-3">
                 <div className="flex gap-1.5">
@@ -129,19 +130,13 @@ const Health: React.FC = () => {
               </div>
             </div>
             
-            <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1 custom-scrollbar">
+            <div className="min-h-0 flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1 custom-scrollbar">
               {logs.length > 0 ? (
                 logs.map((log, idx) => {
-                  const isError = log.includes('[ERROR]');
-                  const isWarn = log.includes('[WARN]');
                   return (
-                    <p key={idx} className="text-on-surface-variant break-all">
-                      <span className="opacity-50">{log.split(']')[0]}]</span>
-                      <span className={isError ? 'text-error' : isWarn ? 'text-tertiary' : 'text-secondary'}>
-                        {log.match(/\[(INFO|ERROR|WARN|WARNING)\]/)?.[0] || ''}
-                      </span>
-                      <span className="ml-1">{log.split(/\[(INFO|ERROR|WARN|WARNING)\]/)[2] || log.split('] ').slice(1).join('] ')}</span>
-                    </p>
+                    <pre key={idx} className="text-on-surface-variant whitespace-pre-wrap break-all">
+                      {log}
+                    </pre>
                   );
                 })
               ) : (

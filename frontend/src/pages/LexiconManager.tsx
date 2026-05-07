@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
-import { PoliticalEntity } from '../types/sentiment';
 
 interface LexiconStats {
   category_stats: Record<string, { word_count: number; recent_additions: number }>;
@@ -27,13 +26,6 @@ interface LexiconForm {
   context_sentence: string;
 }
 
-interface EntityForm {
-  entity: string;
-  type: string;
-  full_name: string;
-  description: string;
-}
-
 const LexiconManager: React.FC = () => {
   const [stats, setStats] = useState<LexiconStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
@@ -46,19 +38,28 @@ const LexiconManager: React.FC = () => {
   });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
-  const [entities, setEntities] = useState<PoliticalEntity[]>([]);
-  const [entityLoading, setEntityLoading] = useState(false);
-  const [entityForm, setEntityForm] = useState<EntityForm>({
-    entity: '',
-    type: 'party',
-    full_name: '',
-    description: ''
-  });
 
   useEffect(() => {
     loadStats();
-    loadEntities();
   }, []);
+
+  const totalCategories = useMemo(
+    () => Object.keys(stats?.category_stats ?? {}).length,
+    [stats]
+  );
+
+  const recentUpdatedAt = useMemo(() => {
+    if (!stats?.metadata.last_updated) {
+      return 'Unknown';
+    }
+
+    return new Date(stats.metadata.last_updated).toLocaleString();
+  }, [stats]);
+
+  const categoryCards = useMemo(
+    () => Object.entries(stats?.category_stats ?? {}),
+    [stats]
+  );
 
   const loadStats = async () => {
     const data = await sentimentApi.getLexiconStats();
@@ -95,213 +96,183 @@ const LexiconManager: React.FC = () => {
     setLoading(false);
   };
 
-  const loadEntities = async () => {
-    const data = await sentimentApi.listPoliticalEntities();
-    setEntities(data);
-  };
-
-  const addEntity = async () => {
-    if (!entityForm.entity.trim() || !entityForm.type.trim()) {
-      setMessage('Entity name and type are required.');
-      return;
-    }
-
-    setEntityLoading(true);
-    const result = await sentimentApi.addPoliticalEntity({
-      entity: entityForm.entity,
-      type: entityForm.type,
-      full_name: entityForm.full_name,
-      description: entityForm.description,
-    });
-
-    if (result.ok) {
-      setMessage(`Added political entity "${entityForm.entity}".`);
-      setEntityForm({ entity: '', type: 'party', full_name: '', description: '' });
-      await loadEntities();
-    } else {
-      setMessage(result.message);
-    }
-
-    setEntityLoading(false);
-  };
-
-  const removeEntity = async (id: number) => {
-    const ok = await sentimentApi.deletePoliticalEntity(id);
-    if (!ok) {
-      setMessage('Failed to delete entity.');
-      return;
-    }
-
-    setMessage('Entity deleted.');
-    await loadEntities();
-  };
-
   return (
-    <div className="lexicon-shell">
-      <div className="section-heading">
-        <div>
-          <p className="eyebrow">Lexicon manager</p>
-          <h2>Political word pool</h2>
-        </div>
-        <p className="section-note">Add words once and they are available to the next sentiment request immediately.</p>
-      </div>
+    <div className="min-h-screen bg-surface text-on-surface">
+      <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
+        <section className="relative overflow-hidden rounded-[28px] border border-outline-variant/15 bg-gradient-to-br from-surface-container-low via-surface-container-low to-surface-container-high p-6 shadow-[0_24px_80px_rgba(0,0,0,0.14)]">
+          <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at top right, rgba(59,130,246,0.14), transparent 28%), radial-gradient(circle at bottom left, rgba(16,185,129,0.12), transparent 24%)' }} />
+          <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl space-y-3">
+              <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-primary">Lexicon Manager</p>
+              <h1 className="text-4xl font-headline font-black tracking-tight uppercase sm:text-5xl">Word Bank Control Room</h1>
+              <p className="max-w-xl text-sm leading-6 text-on-surface-variant">
+                Keep the sentiment engine sharp. Add words and search meanings from one clean workspace.
+              </p>
+            </div>
 
-      {message && <div className="status-banner">{message}</div>}
-
-      <div className="stats-grid">
-        <div className="stat-card">
-          <span className="stat-label">Total words</span>
-          <strong className="stat-value">{stats?.total_words ?? 0}</strong>
-        </div>
-        <div className="stat-card">
-          <span className="stat-label">Last updated</span>
-          <strong className="stat-value">
-            {stats?.metadata.last_updated ? new Date(stats.metadata.last_updated).toLocaleString() : 'Unknown'}
-          </strong>
-        </div>
-      </div>
-
-      <div className="lexicon-grid">
-        <div className="subpanel">
-          <h3>Search</h3>
-          <div className="row">
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search words or meanings"
-            />
-            <button type="button" onClick={searchLexicon}>Search</button>
+            <div className="grid grid-cols-2 gap-3 sm:min-w-[360px]">
+              <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low/90 p-4 backdrop-blur">
+                <span className="block font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Total Words</span>
+                <strong className="mt-2 block text-3xl font-headline font-black text-primary">{stats?.total_words ?? 0}</strong>
+              </div>
+              <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low/90 p-4 backdrop-blur">
+                <span className="block font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Categories</span>
+                <strong className="mt-2 block text-3xl font-headline font-black text-secondary">{totalCategories}</strong>
+              </div>
+              <div className="rounded-2xl border border-outline-variant/15 bg-surface-container-low/90 p-4 backdrop-blur">
+                <span className="block font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">Updated</span>
+                <strong className="mt-2 block text-sm font-semibold text-on-surface">{recentUpdatedAt}</strong>
+              </div>
+            </div>
           </div>
 
-          <div className="result-list">
-            {searchResults.length === 0 ? (
-              <p className="muted">No results yet.</p>
-            ) : (
-              searchResults.map((item, index) => (
-                <div key={`${item.word}-${index}`} className="result-row">
-                  <strong>{item.word}</strong>
-                  <span>{item.category}</span>
-                  <p>{item.details.meaning}</p>
+          {message && (
+            <div className="relative mt-6 rounded-2xl border border-primary/20 bg-primary/10 px-4 py-3 text-sm text-on-surface">
+              {message}
+            </div>
+          )}
+        </section>
+
+        <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <div className="space-y-6">
+            <div className="rounded-[24px] border border-outline-variant/15 bg-surface-container-low p-5 shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+              <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 pb-4">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-on-surface-variant">Lexicon Search</p>
+                  <h2 className="mt-1 text-xl font-headline font-bold uppercase">Find words and meanings</h2>
                 </div>
-              ))
-            )}
-          </div>
-        </div>
+                <span className="rounded-full border border-outline-variant/15 bg-surface-container-high px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                  {searchResults.length} results
+                </span>
+              </div>
 
-        <div className="subpanel">
-          <h3>Add word</h3>
-          <div className="stack">
-            <input
-              type="text"
-              value={entry.word}
-              onChange={(e) => setEntry({ ...entry, word: e.target.value })}
-              placeholder="Word"
-            />
-            <input
-              type="text"
-              value={entry.meaning}
-              onChange={(e) => setEntry({ ...entry, meaning: e.target.value })}
-              placeholder="Meaning"
-            />
-            <select
-              value={entry.category}
-              onChange={(e) => setEntry({ ...entry, category: e.target.value })}
-            >
-              <option value="political">Political</option>
-              <option value="positive">Positive</option>
-              <option value="negative">Negative</option>
-              <option value="common_words">Common words</option>
-              <option value="botswana_specific">Botswana specific</option>
-            </select>
-            <textarea
-              value={entry.context_sentence}
-              onChange={(e) => setEntry({ ...entry, context_sentence: e.target.value })}
-              placeholder="Example sentence"
-              rows={4}
-            />
-            <button type="button" onClick={addWord} disabled={loading}>
-              {loading ? 'Saving...' : 'Add to lexicon'}
-            </button>
-          </div>
-        </div>
-      </div>
+              <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search words or meanings"
+                  className="min-h-12 flex-1 rounded-xl border border-outline-variant/20 bg-surface-container-highest px-4 text-sm outline-none transition-colors placeholder:text-on-surface-variant/40 focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={searchLexicon}
+                  className="min-h-12 rounded-xl bg-primary px-5 text-sm font-semibold text-on-primary transition-all hover:brightness-110"
+                >
+                  Search
+                </button>
+              </div>
 
-      <div className="category-grid">
-        {Object.entries(stats?.category_stats ?? {}).map(([category, info]) => (
-          <div key={category} className="category-card">
-            <span>{category}</span>
-            <strong>{info.word_count}</strong>
-          </div>
-        ))}
-      </div>
-
-      <div className="section-heading" style={{ marginTop: '2rem' }}>
-        <div>
-          <p className="eyebrow">Political entities</p>
-          <h2>Database-backed entity manager</h2>
-        </div>
-        <p className="section-note">Entities used in analysis are now loaded from SQLite and can be managed from UI.</p>
-      </div>
-
-      <div className="lexicon-grid">
-        <div className="subpanel">
-          <h3>Add entity</h3>
-          <div className="stack">
-            <input
-              type="text"
-              value={entityForm.entity}
-              onChange={(e) => setEntityForm({ ...entityForm, entity: e.target.value })}
-              placeholder="Entity label (e.g., BDP, Masisi)"
-            />
-            <select
-              value={entityForm.type}
-              onChange={(e) => setEntityForm({ ...entityForm, type: e.target.value })}
-            >
-              <option value="party">Party</option>
-              <option value="leader">Leader</option>
-              <option value="location">Location</option>
-              <option value="institution">Institution</option>
-              <option value="other">Other</option>
-            </select>
-            <input
-              type="text"
-              value={entityForm.full_name}
-              onChange={(e) => setEntityForm({ ...entityForm, full_name: e.target.value })}
-              placeholder="Full name (optional)"
-            />
-            <textarea
-              value={entityForm.description}
-              onChange={(e) => setEntityForm({ ...entityForm, description: e.target.value })}
-              placeholder="Description (optional)"
-              rows={3}
-            />
-            <button type="button" onClick={addEntity} disabled={entityLoading}>
-              {entityLoading ? 'Saving...' : 'Add entity'}
-            </button>
-          </div>
-        </div>
-
-        <div className="subpanel">
-          <h3>Current entities ({entities.length})</h3>
-          <div className="result-list">
-            {entities.length === 0 ? (
-              <p className="muted">No entities found.</p>
-            ) : (
-              entities.map((entity) => (
-                <div key={entity.id} className="result-row">
-                  <div style={{ display: 'flex', justifyContent: 'space-between', gap: '0.75rem', alignItems: 'center' }}>
-                    <strong>{entity.entity}</strong>
-                    <button type="button" onClick={() => removeEntity(entity.id)}>Delete</button>
+              <div className="mt-5 space-y-3">
+                {searchResults.length === 0 ? (
+                  <div className="rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container-lowest px-4 py-6 text-sm text-on-surface-variant">
+                    Search results will appear here.
                   </div>
-                  <span>{entity.type}</span>
-                  {entity.full_name && <p>{entity.full_name}</p>}
-                  {entity.description && <p>{entity.description}</p>}
+                ) : (
+                  searchResults.map((item, index) => (
+                    <article
+                      key={`${item.word}-${index}`}
+                      className="rounded-2xl border border-outline-variant/10 bg-surface-container-high px-4 py-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <strong className="text-base uppercase tracking-wide text-primary">{item.word}</strong>
+                        <span className="rounded-full bg-secondary/10 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-secondary">
+                          {item.category}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-on-surface-variant">{item.details.meaning}</p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[24px] border border-outline-variant/15 bg-surface-container-low p-5 shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+              <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 pb-4">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-on-surface-variant">Add Word</p>
+                  <h2 className="mt-1 text-xl font-headline font-bold uppercase">Grow the lexicon</h2>
                 </div>
-              ))
-            )}
+                <span className="rounded-full border border-outline-variant/15 bg-surface-container-high px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                  Live sync
+                </span>
+              </div>
+
+              <div className="mt-4 grid gap-3">
+                <input
+                  type="text"
+                  value={entry.word}
+                  onChange={(e) => setEntry({ ...entry, word: e.target.value })}
+                  placeholder="Word"
+                  className="min-h-12 rounded-xl border border-outline-variant/20 bg-surface-container-highest px-4 text-sm outline-none transition-colors placeholder:text-on-surface-variant/40 focus:border-primary"
+                />
+                <input
+                  type="text"
+                  value={entry.meaning}
+                  onChange={(e) => setEntry({ ...entry, meaning: e.target.value })}
+                  placeholder="Meaning"
+                  className="min-h-12 rounded-xl border border-outline-variant/20 bg-surface-container-highest px-4 text-sm outline-none transition-colors placeholder:text-on-surface-variant/40 focus:border-primary"
+                />
+                <select
+                  value={entry.category}
+                  onChange={(e) => setEntry({ ...entry, category: e.target.value })}
+                  className="min-h-12 rounded-xl border border-outline-variant/20 bg-surface-container-highest px-4 text-sm outline-none transition-colors focus:border-primary"
+                >
+                  <option value="political">Political</option>
+                  <option value="positive">Positive</option>
+                  <option value="negative">Negative</option>
+                  <option value="common_words">Common words</option>
+                  <option value="botswana_specific">Botswana specific</option>
+                </select>
+                <textarea
+                  value={entry.context_sentence}
+                  onChange={(e) => setEntry({ ...entry, context_sentence: e.target.value })}
+                  placeholder="Example sentence"
+                  rows={4}
+                  className="rounded-xl border border-outline-variant/20 bg-surface-container-highest px-4 py-3 text-sm outline-none transition-colors placeholder:text-on-surface-variant/40 focus:border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={addWord}
+                  disabled={loading}
+                  className="min-h-12 rounded-xl bg-secondary px-5 text-sm font-semibold text-on-secondary transition-all hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? 'Saving...' : 'Add to lexicon'}
+                </button>
+              </div>
+            </div>
           </div>
-        </div>
+
+          <aside className="space-y-6">
+            <div className="rounded-[24px] border border-outline-variant/15 bg-surface-container-low p-5 shadow-[0_20px_60px_rgba(0,0,0,0.08)]">
+              <div className="flex items-start justify-between gap-4 border-b border-outline-variant/10 pb-4">
+                <div>
+                  <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-on-surface-variant">Category Overview</p>
+                  <h2 className="mt-1 text-xl font-headline font-bold uppercase">Lexicon distribution</h2>
+                </div>
+                <span className="rounded-full border border-outline-variant/15 bg-surface-container-high px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-on-surface-variant">
+                  {categoryCards.length} groups
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                {categoryCards.length === 0 ? (
+                  <div className="col-span-2 rounded-2xl border border-dashed border-outline-variant/20 bg-surface-container-lowest px-4 py-6 text-sm text-on-surface-variant">
+                    No category data yet.
+                  </div>
+                ) : (
+                  categoryCards.map(([category, info]) => (
+                    <div key={category} className="rounded-2xl border border-outline-variant/10 bg-surface-container-high p-4">
+                      <span className="block text-[10px] uppercase tracking-[0.3em] text-on-surface-variant">{category}</span>
+                      <strong className="mt-2 block text-2xl font-headline font-black text-on-surface">{info.word_count}</strong>
+                      <span className="mt-1 block text-xs text-on-surface-variant">{info.recent_additions} recent additions</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </aside>
+        </section>
       </div>
     </div>
   );
