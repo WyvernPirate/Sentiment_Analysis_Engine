@@ -1,4 +1,5 @@
 import re
+from typing import List, Tuple, Dict
 from transformers import pipeline
 
 
