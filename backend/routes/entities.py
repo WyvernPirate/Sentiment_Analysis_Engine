@@ -4,14 +4,14 @@ from services.political_entity_service import political_entity_service
 
 entities_bp = Blueprint('entities', __name__)
 
-
+# Endpoint to list political entities, optionally filtered by type
 @entities_bp.route('/', methods=['GET'])
 def list_entities():
     entity_type = request.args.get('type', '').strip() or None
     entities = political_entity_service.list_entities(entity_type)
     return jsonify({'entities': entities, 'count': len(entities)})
 
-
+# Endpoint to add a new political entity
 @entities_bp.route('/add', methods=['POST'])
 def add_entity():
     payload = request.get_json() or {}
@@ -32,7 +32,7 @@ def add_entity():
 
     return jsonify({'message': 'Entity added successfully', 'id': result.get('id')})
 
-
+# Endpoint to delete a political entity by ID
 @entities_bp.route('/<int:entity_id>', methods=['DELETE'])
 def delete_entity(entity_id: int):
     deleted = political_entity_service.delete_entity(entity_id)
@@ -40,7 +40,7 @@ def delete_entity(entity_id: int):
         return jsonify({'error': 'Entity not found'}), 404
     return jsonify({'message': 'Entity deleted'})
 
-
+# Health check endpoint for political entities service
 @entities_bp.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'healthy', 'service': 'political-entities'})

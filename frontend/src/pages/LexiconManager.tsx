@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { sentimentApi } from './services/sentimentApi';
-import { PoliticalEntity } from './types/sentiment';
-
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+import { sentimentApi } from '../services/sentimentApi';
+import { PoliticalEntity } from '../types/sentiment';
 
 interface LexiconStats {
   category_stats: Record<string, { word_count: number; recent_additions: number }>;
@@ -63,13 +61,8 @@ const LexiconManager: React.FC = () => {
   }, []);
 
   const loadStats = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/lexicon/stats`);
-      const data = await response.json();
-      setStats(data);
-    } catch {
-      setStats(null);
-    }
+    const data = await sentimentApi.getLexiconStats();
+    setStats(data);
   };
 
   const searchLexicon = async () => {
@@ -77,14 +70,8 @@ const LexiconManager: React.FC = () => {
       setSearchResults([]);
       return;
     }
-
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/lexicon/search?q=${encodeURIComponent(searchQuery)}`);
-      const data = await response.json();
-      setSearchResults(Array.isArray(data.results) ? data.results : []);
-    } catch {
-      setSearchResults([]);
-    }
+    const results = await sentimentApi.searchLexicon(searchQuery);
+    setSearchResults(results);
   };
 
   const addWord = async () => {
@@ -96,27 +83,16 @@ const LexiconManager: React.FC = () => {
     setLoading(true);
     setMessage('');
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/lexicon/add`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(entry)
-      });
+    const result = await sentimentApi.addLexiconWord(entry);
 
-      const data = await response.json();
-
-      if (response.ok) {
-        setMessage(`Added "${entry.word}" to the lexicon.`);
-        setEntry({ word: '', meaning: '', category: 'political', context_sentence: '' });
-        await loadStats();
-      } else {
-        setMessage(data.error || 'Failed to add word.');
-      }
-    } catch {
-      setMessage('Failed to add word.');
-    } finally {
-      setLoading(false);
+    if (result.ok) {
+      setMessage(`Added "${entry.word}" to the lexicon.`);
+      setEntry({ word: '', meaning: '', category: 'political', context_sentence: '' });
+      await loadStats();
+    } else {
+      setMessage(result.message);
     }
+    setLoading(false);
   };
 
   const loadEntities = async () => {

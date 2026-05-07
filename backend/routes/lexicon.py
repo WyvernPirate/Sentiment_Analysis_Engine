@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 from services.lexicon_service import lexicon_service
-from lexicon_manager import lexicon_manager
+from services.lexicon_manager import lexicon_manager
 
 lexicon_bp = Blueprint('lexicon', __name__)
 
@@ -8,7 +8,7 @@ lexicon_bp = Blueprint('lexicon', __name__)
 def get_lexicon():
     return jsonify(lexicon_service.get_stats())
 
-
+# Endpoint to get lexicon stats and metadata
 @lexicon_bp.route('/stats', methods=['GET'])
 def get_stats():
     return jsonify({
@@ -17,7 +17,7 @@ def get_stats():
         'total_words': lexicon_manager.count_total_words()
     })
 
-
+# Search lexicon with optional category filter
 @lexicon_bp.route('/search', methods=['GET'])
 def search_lexicon():
     query = request.args.get('q', '').strip()
@@ -28,7 +28,7 @@ def search_lexicon():
     results = lexicon_manager.search_words(query, category)
     return jsonify({'results': results, 'count': len(results), 'query': query, 'category': category})
 
-
+# Endpoint to add a new word to the lexicon
 @lexicon_bp.route('/add', methods=['POST'])
 def add_word():
     data = request.get_json() or {}
@@ -55,6 +55,7 @@ def add_word():
     lexicon_service.refresh_lexicon()
     return jsonify({'message': f"Word '{word}' added successfully", 'word': word, 'category': category, 'meaning': meaning})
 
+# Health check endpoint for lexicon service
 @lexicon_bp.route('/health', methods=['GET'])
 def health():
     return jsonify({"status": "healthy", "service": "lexicon"})

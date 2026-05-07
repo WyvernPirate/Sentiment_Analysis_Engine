@@ -8,7 +8,11 @@ from config import Config
 from routes.sentiment import sentiment_bp
 from routes.lexicon import lexicon_bp
 from routes.entities import entities_bp
+from routes.social import social_bp
+from routes.analysis import analysis_bp
+from routes.system import system_bp
 
+from utils.logger import logger
 
 def create_app(config_class=Config):
     
@@ -22,6 +26,11 @@ def create_app(config_class=Config):
     app.register_blueprint(sentiment_bp, url_prefix='/api/sentiment')
     app.register_blueprint(lexicon_bp, url_prefix='/api/lexicon')
     app.register_blueprint(entities_bp, url_prefix='/api/entities')
+    app.register_blueprint(social_bp, url_prefix='/api/social')
+    app.register_blueprint(analysis_bp, url_prefix='/api/analysis')
+    app.register_blueprint(system_bp, url_prefix='/api/system')
+
+    logger.info("Application initialized")
     
     # Simple root endpoint
     @app.route('/')
@@ -33,7 +42,8 @@ def create_app(config_class=Config):
             "endpoints": {
                 "analyze": "POST /api/sentiment/analyze",
                 "lexicon": "GET/POST /api/lexicon/*",
-                "entities": "GET/POST/DELETE /api/entities/*"
+                "entities": "GET/POST/DELETE /api/entities/*",
+                "social": "GET/POST /api/social/*"
             }
         })
     
@@ -69,6 +79,10 @@ if __name__ == '__main__':
     print("   GET  /api/entities/ - List political entities")
     print("   POST /api/entities/add - Add political entity")
     print("   DELETE /api/entities/<id> - Delete political entity")
+    print("   GET  /api/social/health - Social pipeline health")
+    print("   POST /api/social/collect - Collect social posts")
+    print("   GET  /api/social/collections - List collected batches")
+    print("   POST /api/social/clean - Clean a collected batch")
     print("=" * 50)
     print("Starting on http://localhost:5000")
     print("CORS enabled for http://localhost:3000")

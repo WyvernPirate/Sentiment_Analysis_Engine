@@ -4,18 +4,15 @@ from services.sentiment_service import sentiment_service
 from services.lexicon_service import lexicon_service
 from services.political_entity_service import political_entity_service
 import re
+from utils.logger import logger
 
 sentiment_bp = Blueprint('sentiment', __name__)
 
 
 @sentiment_bp.route('/test-examples', methods=['GET'])
 def test_examples():
-    """
-    Test examples endpoint for frontend quick validation
-    
-    Returns sample English texts with expected sentiment labels
-    Used by frontend to verify backend is responding correctly
-    """
+   
+    logger.info("Serving test examples")
     return jsonify({
         "examples": [
             {
@@ -70,6 +67,7 @@ def analyze():
     try:
         data = request.get_json() or {}
         text = data.get('text', '').strip()
+        logger.info(f"Analyzing sentiment for text (length: {len(text)})")
 
         if not text:
             return jsonify({"error": "No text provided"}), 400
@@ -92,8 +90,8 @@ def analyze():
         # Post-inference political entity extraction (database-backed)
         political_entities = political_entity_service.extract_entities(text)
         
-        # Trigger word extraction for UI display
-        sentiment_words = sentiment_service.extract_sentiment_trigger_words(text)
+        # Trigger word extraction for UI display - passing sentiment for model-aware analysis
+        sentiment_words = sentiment_service.extract_sentiment_trigger_words(text, target_sentiment=sentiment)
 
         # STEP 3: RESPONSE ASSEMBLY 
         return jsonify({
@@ -117,6 +115,6 @@ def analyze():
         })
 
     except Exception as e:
-        # Log error, return 500, allows frontend to raise gracefully
-        print(f"Sentiment analysis error: {str(e)}")
+        # Log error, return 500, allows frontend to show
+        logger.error(f"Sentiment analysis error: {str(e)}")
         return jsonify({"error": str(e)}), 500

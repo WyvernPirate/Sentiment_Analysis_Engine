@@ -1,4 +1,4 @@
-from lexicon_manager import lexicon_manager
+from .lexicon_manager import lexicon_manager
 
 class LexiconService:
     def __init__(self):

@@ -12,12 +12,27 @@ class Config:
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
-    # Social Media API Keys
-    TWITTER_BEARER_TOKEN = os.environ.get('TWITTER_BEARER_TOKEN')
-    TWITTER_API_KEY = os.environ.get('TWITTER_API_KEY')
-    TWITTER_API_SECRET = os.environ.get('TWITTER_API_SECRET')
-    TWITTER_ACCESS_TOKEN = os.environ.get('TWITTER_ACCESS_TOKEN')
-    TWITTER_ACCESS_TOKEN_SECRET = os.environ.get('TWITTER_ACCESS_TOKEN_SECRET')
+    # Collection provider strategy
+    SOCIAL_PROVIDER = os.environ.get('SOCIAL_PROVIDER', 'brightdata')
+
+    # Bright Data collector integration
+    BRIGHTDATA_API_TOKEN = os.environ.get('BRIGHTDATA_API_TOKEN')
+    BRIGHTDATA_COLLECTOR_URL = os.environ.get('BRIGHTDATA_COLLECTOR_URL')
+    BRIGHTDATA_TIMEOUT_SECONDS = int(os.environ.get('BRIGHTDATA_TIMEOUT_SECONDS', '60'))
+
+    # Apify integration (query-based search collection)
+    APIFY_API_TOKEN = os.environ.get('APIFY_API_TOKEN')
+    APIFY_ACTOR_ID = os.environ.get('APIFY_ACTOR_ID')
+    APIFY_TIMEOUT_SECONDS = int(os.environ.get('APIFY_TIMEOUT_SECONDS', '120'))
+    APIFY_WAIT_FOR_FINISH_SECONDS = int(os.environ.get('APIFY_WAIT_FOR_FINISH_SECONDS', '120'))
+
+    # Twikit integration (query-based search via authenticated account)
+    TWIKIT_USERNAME = os.environ.get('TWIKIT_USERNAME')
+    TWIKIT_EMAIL = os.environ.get('TWIKIT_EMAIL')
+    TWIKIT_PASSWORD = os.environ.get('TWIKIT_PASSWORD')
+    TWIKIT_COOKIES_PATH = os.environ.get('TWIKIT_COOKIES_PATH', 'data/twikit_cookies.json')
+    TWIKIT_LANGUAGE = os.environ.get('TWIKIT_LANGUAGE', 'en-US')
+    TWIKIT_ENABLE_UI_METRICS = os.environ.get('TWIKIT_ENABLE_UI_METRICS', 'true').lower() == 'true'
     
     FACEBOOK_ACCESS_TOKEN = os.environ.get('FACEBOOK_ACCESS_TOKEN')
     FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID')
