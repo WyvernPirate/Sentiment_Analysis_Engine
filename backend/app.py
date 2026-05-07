@@ -10,7 +10,9 @@ from routes.lexicon import lexicon_bp
 from routes.entities import entities_bp
 from routes.social import social_bp
 from routes.analysis import analysis_bp
+from routes.system import system_bp
 
+from utils.logger import logger
 
 def create_app(config_class=Config):
     
@@ -26,6 +28,9 @@ def create_app(config_class=Config):
     app.register_blueprint(entities_bp, url_prefix='/api/entities')
     app.register_blueprint(social_bp, url_prefix='/api/social')
     app.register_blueprint(analysis_bp, url_prefix='/api/analysis')
+    app.register_blueprint(system_bp, url_prefix='/api/system')
+
+    logger.info("Application initialized")
     
     # Simple root endpoint
     @app.route('/')
