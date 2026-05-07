@@ -132,16 +132,10 @@ const Health: React.FC = () => {
             <div className="flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1 custom-scrollbar">
               {logs.length > 0 ? (
                 logs.map((log, idx) => {
-                  const isError = log.includes('[ERROR]');
-                  const isWarn = log.includes('[WARN]');
                   return (
-                    <p key={idx} className="text-on-surface-variant break-all">
-                      <span className="opacity-50">{log.split(']')[0]}]</span>
-                      <span className={isError ? 'text-error' : isWarn ? 'text-tertiary' : 'text-secondary'}>
-                        {log.match(/\[(INFO|ERROR|WARN|WARNING)\]/)?.[0] || ''}
-                      </span>
-                      <span className="ml-1">{log.split(/\[(INFO|ERROR|WARN|WARNING)\]/)[2] || log.split('] ').slice(1).join('] ')}</span>
-                    </p>
+                    <pre key={idx} className="text-on-surface-variant whitespace-pre-wrap break-all">
+                      {log}
+                    </pre>
                   );
                 })
               ) : (
