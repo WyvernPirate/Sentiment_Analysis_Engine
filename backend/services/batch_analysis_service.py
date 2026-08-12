@@ -204,8 +204,13 @@ class BatchAnalysisService:
 
         return jobs
 
+    JOB_ID_RE = re.compile(r'^[A-Za-z0-9._-]+$')
+
     def get_job(self, job_id: str) -> Optional[Dict]:
         """Retrieve full results for a specific analysis job."""
+        if not job_id or not self.JOB_ID_RE.match(job_id):
+            return None
+
         result_path = os.path.join(self.RESULTS_DIR, f'{job_id}.json')
         if not os.path.exists(result_path):
             return None

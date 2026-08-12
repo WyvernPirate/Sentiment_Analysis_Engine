@@ -1,8 +1,12 @@
 # Backend runtime dependencies (simplified baseline API)
 flask==3.1.3
 flask-cors==6.0.1
-transformers==5.0.0rc3
+transformers==5.0.0
+# torch is a large download; installing the CPU-only build is much smaller/faster
+# for local dev and demo purposes, e.g.:
+#   pip install torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
 torch==2.11.0
 requests==2.33.0
 python-dotenv==1.2.2
-twikit
+psutil==6.1.0
+twikit==2.3.3

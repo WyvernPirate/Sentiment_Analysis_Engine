@@ -1,7 +1,6 @@
-import os
 import time
 import platform
-import subprocess
+import psutil
 from utils.logger import get_recent_logs, logger
 
 class SystemService:
@@ -33,20 +32,11 @@ class SystemService:
             ]
         }
 
-        # Try to get real resource usage via subprocess (fallback for psutil)
+        # Real resource usage via psutil (cross-platform, no shell execution)
         try:
-            if platform.system() == "Linux":
-                # CPU usage
-                cpu = subprocess.check_output("top -bn1 | grep 'Cpu(s)' | sed 's/.*, *\\([0-9.]*\\)%* id.*/\\1/' | awk '{print 100 - $1\"%\"}'", shell=True).decode().strip()
-                health["resources"]["cpu_usage"] = cpu
-                
-                # Memory usage
-                mem = subprocess.check_output("free -m | awk 'NR==2{printf \"%.2f%%\", $3*100/$2 }'", shell=True).decode().strip()
-                health["resources"]["memory_usage"] = mem
-                
-                # Disk usage
-                disk = subprocess.check_output("df -h / | awk 'NR==2{print $5}'", shell=True).decode().strip()
-                health["resources"]["disk_usage"] = disk
+            health["resources"]["cpu_usage"] = f"{psutil.cpu_percent(interval=0.1)}%"
+            health["resources"]["memory_usage"] = f"{psutil.virtual_memory().percent}%"
+            health["resources"]["disk_usage"] = f"{psutil.disk_usage('/').percent}%"
         except Exception as e:
             logger.error(f"Failed to fetch real system metrics: {str(e)}")
             # Fallback values stay as 0%
