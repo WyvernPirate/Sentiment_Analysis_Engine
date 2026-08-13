@@ -44,7 +44,7 @@ const Health: React.FC = () => {
   };
 
   return (
-    <div className="ml-64 pt-14 min-h-screen bg-surface">
+    <>
       <div className="p-6 space-y-6">
         <div className="flex items-end justify-between border-b border-outline-variant/10 pb-4">
           <div>
@@ -158,7 +158,7 @@ const Health: React.FC = () => {
           </div>
         </div>
       </div>
-    </div>
+    </>
   );
 };
 

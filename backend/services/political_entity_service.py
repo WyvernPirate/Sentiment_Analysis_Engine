@@ -5,7 +5,7 @@ from typing import Dict, List, Optional
 from sqlalchemy.exc import IntegrityError
 
 from extensions import db
-from models import PoliticalEntity
+from models import AnalysisJob, PoliticalEntity
 
 
 class PoliticalEntityService:
@@ -136,6 +136,61 @@ class PoliticalEntityService:
                     terms.add(f'@{compact_entity}')
 
         return sorted(term for term in terms if term)
+
+    # Aggregates real mention counts + sentiment breakdown per entity across recent
+    # analysis jobs, replacing what used to be hardcoded 0/'N/A'/'LOW' placeholder
+    # values in the frontend. Scoped to the most recent `job_limit` jobs — this is
+    # an in-process scan over each job's stored rows, not a DB-level join, so it's
+    # deliberately bounded rather than scanning the entire job history.
+    def get_bulk_entity_stats(self, job_limit: int = 50) -> Dict[str, Dict]:
+        jobs = (
+            AnalysisJob.query
+            .order_by(AnalysisJob.analyzed_at.desc())
+            .limit(job_limit)
+            .all()
+        )
+
+        raw: Dict[str, Dict] = {}
+        for job in jobs:
+            for row in (job.rows or []):
+                sentiment = row.get('sentiment')
+                for ent in row.get('entities', []):
+                    name = ent.get('entity', '')
+                    if not name:
+                        continue
+                    bucket = raw.setdefault(name, {'mentions': 0, 'positive': 0, 'neutral': 0, 'negative': 0})
+                    bucket['mentions'] += 1
+                    if sentiment in ('positive', 'neutral', 'negative'):
+                        bucket[sentiment] += 1
+
+        stats: Dict[str, Dict] = {}
+        for name, bucket in raw.items():
+            mentions = bucket['mentions']
+            net_sentiment = round((bucket['positive'] - bucket['negative']) / mentions, 2) if mentions else 0.0
+
+            # Simple, explainable risk heuristic: enough negative-leaning volume
+            # to matter (>=3 mentions) and net sentiment clearly negative -> HIGH;
+            # any net-negative lean -> MED; otherwise LOW. Not a claim of
+            # statistical rigor, just a readable signal from real data.
+            if mentions >= 3 and net_sentiment <= -0.3:
+                risk = 'HIGH'
+            elif net_sentiment < 0:
+                risk = 'MED'
+            else:
+                risk = 'LOW'
+
+            stats[name] = {
+                'mentions': mentions,
+                'sentiment_counts': {
+                    'positive': bucket['positive'],
+                    'neutral': bucket['neutral'],
+                    'negative': bucket['negative'],
+                },
+                'net_sentiment': net_sentiment,
+                'risk': risk,
+            }
+
+        return stats
 
 
 political_entity_service = PoliticalEntityService()

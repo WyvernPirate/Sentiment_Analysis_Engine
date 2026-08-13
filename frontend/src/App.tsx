@@ -6,6 +6,7 @@ import Entities from './pages/Entities';
 import Scraping from './pages/Scraping';
 import Health from './pages/Health';
 import LexiconManager from './pages/LexiconManager';
+import ManualAnalyzer from './pages/ManualAnalyzer';
 
 import { AnalyticsProvider } from './context/AnalyticsContext';
 
@@ -17,6 +18,7 @@ function App() {
           <Route element={<DashboardLayout />}>
             <Route path="/" element={<Navigate to="/analytics" replace />} />
             <Route path="/analytics" element={<Analytics />} />
+            <Route path="/analyze" element={<ManualAnalyzer />} />
             <Route path="/entities" element={<Entities />} />
             <Route path="/scraping" element={<Scraping />} />
             <Route path="/health" element={<Health />} />

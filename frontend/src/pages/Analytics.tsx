@@ -302,7 +302,7 @@ const Analytics: React.FC = () => {
   const negArc = (pctNeg / 100) * circumference;
 
   return (
-    <div className="ml-64 pt-14 min-h-screen bg-surface">
+    <>
       <div className="p-6 space-y-6">
         {/* Header & Main Controls */}
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-outline-variant/10">
@@ -758,7 +758,7 @@ const Analytics: React.FC = () => {
           </section>
         )}
       </div>
-    </div>
+    </>
   );
 };
 

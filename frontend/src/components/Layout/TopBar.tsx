@@ -13,16 +13,6 @@ const TopBar: React.FC = () => {
       </div>
 
       <div className="flex items-center gap-4">
-        {/* Search box */}
-        <div className="hidden md:flex items-center bg-surface-container-lowest border border-outline-variant/20 px-3 py-1.5">
-          <span className="material-symbols-outlined text-sm text-on-surface-variant mr-2">search</span>
-          <input
-            type="text"
-            placeholder="SYS_QUERY_EXEC..."
-            className="bg-transparent border-0 text-xs font-mono text-on-surface placeholder-on-surface-variant/40 focus:ring-0 w-48"
-          />
-        </div>
-
         {/* Icon buttons */}
         <div className="flex gap-2 relative">
           <button 
@@ -97,34 +87,6 @@ const TopBar: React.FC = () => {
             </div>
           )}
 
-          <button className="p-2 text-on-surface-variant hover:text-primary hover:bg-surface-container-high transition-colors group relative">
-            <span className="material-symbols-outlined">tune</span>
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-surface-container-highest text-[8px] font-mono py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-              ANALYSIS_PARAMETERS
-            </span>
-          </button>
-          
-          <button className="p-2 text-primary hover:bg-surface-container-high transition-colors group relative">
-            <span className="material-symbols-outlined">sensors</span>
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-surface-container-highest text-[8px] font-mono py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-              LIVE_DATA_STREAM: ACTIVE
-            </span>
-          </button>
-
-          <button className="p-2 text-primary hover:bg-surface-container-high transition-colors group relative">
-            <span className="material-symbols-outlined animate-pulse">speed</span>
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-surface-container-highest text-[8px] font-mono py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-              PERF_LATENCY: 42ms
-            </span>
-          </button>
-
-          <button className="p-2 text-primary hover:bg-surface-container-high transition-colors relative group">
-            <span className="material-symbols-outlined">database</span>
-            <span className="absolute right-1 top-1 w-1.5 h-1.5 bg-tertiary"></span>
-            <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-surface-container-highest text-[8px] font-mono py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
-              STORAGE_STATUS: 84%_FULL
-            </span>
-          </button>
         </div>
       </div>
     </header>

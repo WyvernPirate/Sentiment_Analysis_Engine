@@ -10,6 +10,14 @@ def test_health_route(client):
     assert 'resources' in body
     assert 'cpu_usage' in body['resources']
 
+    # Phase 4: the service matrix now runs real checks instead of four
+    # hardcoded "PASS" entries — confirm DATABASE and LEXICON (both real
+    # in the test fixture) actually report PASS, not just that the key exists.
+    service_status = {s['name']: s['status'] for s in body['services']}
+    assert service_status['DATABASE'] == 'PASS'
+    assert service_status['LEXICON'] == 'PASS'
+    assert body['status'] in ('healthy', 'degraded')
+
 
 def test_event_route_with_empty_body_returns_400_not_500(client):
     response = client.post('/api/system/event')

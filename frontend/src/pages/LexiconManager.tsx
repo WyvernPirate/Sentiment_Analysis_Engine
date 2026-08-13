@@ -1,23 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
-
-interface LexiconStats {
-  category_stats: Record<string, { word_count: number; recent_additions: number }>;
-  metadata: {
-    version: string;
-    last_updated: string;
-    total_words: number;
-  };
-  total_words: number;
-}
-
-interface LexiconEntry {
-  word: string;
-  category: string;
-  details: {
-    meaning: string;
-  };
-}
+import { LexiconStats, LexiconSearchResult } from '../types/sentiment';
 
 interface LexiconForm {
   word: string;
@@ -29,7 +12,7 @@ interface LexiconForm {
 const LexiconManager: React.FC = () => {
   const [stats, setStats] = useState<LexiconStats | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<LexiconEntry[]>([]);
+  const [searchResults, setSearchResults] = useState<LexiconSearchResult[]>([]);
   const [entry, setEntry] = useState<LexiconForm>({
     word: '',
     meaning: '',
@@ -97,7 +80,7 @@ const LexiconManager: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-surface text-on-surface">
+    <>
       <div className="mx-auto max-w-7xl px-6 py-8 space-y-8">
         <section className="relative overflow-hidden rounded-[28px] border border-outline-variant/15 bg-gradient-to-br from-surface-container-low via-surface-container-low to-surface-container-high p-6 shadow-[0_24px_80px_rgba(0,0,0,0.14)]">
           <div className="absolute inset-0 opacity-40" style={{ background: 'radial-gradient(circle at top right, rgba(59,130,246,0.14), transparent 28%), radial-gradient(circle at bottom left, rgba(16,185,129,0.12), transparent 24%)' }} />
@@ -274,7 +257,7 @@ const LexiconManager: React.FC = () => {
           </aside>
         </section>
       </div>
-    </div>
+    </>
   );
 };
 
