@@ -1,0 +1,40 @@
+name: Backend CI
+
+on:
+  push:
+    branches: ['**']
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Deliberately skip transformers/torch here: the test suite stubs the
+      # sentiment pipelines (see tests/conftest.py's stub_pipelines fixture)
+      # so it never actually loads a model, and those two packages alone are
+      # a multi-hundred-MB install that would make CI slow for no benefit.
+      # A real dev/deploy install should still use requirements.txt in full.
+      - name: Install lightweight runtime + test dependencies
+        run: |
+          pip install flask==3.1.3 flask-cors==6.0.1 flask-sqlalchemy==3.1.1 \
+                      flask-migrate==4.1.0 requests==2.33.0 python-dotenv==1.2.2 \
+                      psutil==6.1.0 pytest==8.4.2
+
+      - name: Run tests
+        run: pytest -v

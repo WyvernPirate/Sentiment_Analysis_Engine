@@ -57,7 +57,7 @@ class PoliticalEntityService:
 
     # Deletes an entity by ID, returns True if deleted, False if not found
     def delete_entity(self, entity_id: int) -> bool:
-        row = PoliticalEntity.query.get(entity_id)
+        row = db.session.get(PoliticalEntity, entity_id)
         if row is None:
             return False
         db.session.delete(row)
