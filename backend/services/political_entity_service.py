@@ -1,97 +1,30 @@
-import os
 import re
-import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
+
+from sqlalchemy.exc import IntegrityError
+
+from extensions import db
+from models import PoliticalEntity
 
 
 class PoliticalEntityService:
-    def __init__(self, db_path: Optional[str] = None):
-        default_db = os.path.join('data', 'political_entities.db')
-        self.db_path = db_path or os.environ.get('POLITICAL_ENTITY_DB_PATH', default_db)
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        self._ensure_schema()
-        self._seed_defaults_if_empty()
+    """Political entity CRUD + text matching, backed by the PoliticalEntity table.
 
-    def _get_conn(self):
-        conn = sqlite3.connect(self.db_path)
-        conn.row_factory = sqlite3.Row
-        return conn
+    Schema creation, seeding, and the DB connection lifecycle are handled by
+    Flask-Migrate / models.seed_defaults_if_empty() at app startup — this
+    service only reads/writes rows within the current request's app context.
+    """
 
-    def _ensure_schema(self):
-        with self._get_conn() as conn:
-            conn.execute(
-                '''
-                CREATE TABLE IF NOT EXISTS political_entities (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    entity TEXT NOT NULL,
-                    normalized_entity TEXT NOT NULL,
-                    type TEXT NOT NULL,
-                    full_name TEXT,
-                    description TEXT,
-                    created_at TEXT NOT NULL,
-                    UNIQUE(normalized_entity, type)
-                )
-                '''
-            )
-
-# Seed with some default entities if table is empty (for testing)
-    def _seed_defaults_if_empty(self):
-        with self._get_conn() as conn:
-            row = conn.execute('SELECT COUNT(*) AS count FROM political_entities').fetchone()
-            if not row or row['count'] > 0:
-                return
-
-            defaults = [
-                {'entity': 'BDP', 'type': 'party', 'full_name': 'Botswana Democratic Party', 'description': 'Political party'},
-                {'entity': 'UDC', 'type': 'party', 'full_name': 'Umbrella for Democratic Change', 'description': 'Political party'},
-                {'entity': 'BCP', 'type': 'party', 'full_name': 'Botswana Congress Party', 'description': 'Political party'},
-                {'entity': 'AP', 'type': 'party', 'full_name': 'Alliance for Progressives', 'description': 'Political party'},
-                {'entity': 'Masisi', 'type': 'leader', 'full_name': 'Mokgweetsi Masisi', 'description': 'Political leader'},
-                {'entity': 'Boko', 'type': 'leader', 'full_name': 'Duma Boko', 'description': 'Political leader'},
-                {'entity': 'Saleshando', 'type': 'leader', 'full_name': 'Dumelang Saleshando', 'description': 'Political leader'},
-                {'entity': 'Khama', 'type': 'leader', 'full_name': 'Ian Khama', 'description': 'Political leader'},
-                {'entity': 'Gaborone', 'type': 'location', 'full_name': 'Gaborone', 'description': 'Capital city'},
-                {'entity': 'Francistown', 'type': 'location', 'full_name': 'Francistown', 'description': 'Second largest city'},
-                {'entity': 'Maun', 'type': 'location', 'full_name': 'Maun', 'description': 'Tourism hub'},
-                {'entity': 'Serowe', 'type': 'location', 'full_name': 'Serowe', 'description': 'Traditional capital'}
-            ]
-
-            for item in defaults:
-                normalized = item['entity'].strip().lower()
-                now = datetime.utcnow().isoformat()
-                conn.execute(
-                    '''
-                    INSERT INTO political_entities (
-                        entity, normalized_entity, type, full_name, description, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                    ''',
-                    (
-                        item['entity'].strip(),
-                        normalized,
-                        item['type'].strip().lower(),
-                        item.get('full_name', '').strip(),
-                        item.get('description', '').strip(),
-                        now,
-                    ),
-                )
-
-# Public methods for API routes and internal use
+    # Public methods for API routes and internal use
     def list_entities(self, entity_type: Optional[str] = None) -> List[Dict]:
-        query = 'SELECT id, entity, type, full_name, description, created_at FROM political_entities'
-        params = []
-
+        query = PoliticalEntity.query
         if entity_type:
-            query += ' WHERE type = ?'
-            params.append(entity_type.strip().lower())
+            query = query.filter_by(type=entity_type.strip().lower())
+        query = query.order_by(PoliticalEntity.type.asc(), PoliticalEntity.entity.asc())
+        return [row.to_dict() for row in query.all()]
 
-        query += ' ORDER BY type ASC, entity ASC'
-
-        with self._get_conn() as conn:
-            rows = conn.execute(query, params).fetchall()
-            return [dict(row) for row in rows]
-
-# Adds a new political entity, returns dict with 'ok' status and 'id' or 'error' message
+    # Adds a new political entity, returns dict with 'ok' status and 'id' or 'error' message
     def add_entity(self, entity: str, entity_type: str, full_name: str = '', description: str = '') -> Dict:
         clean_entity = (entity or '').strip()
         clean_type = (entity_type or '').strip().lower()
@@ -102,35 +35,42 @@ class PoliticalEntityService:
         if not clean_type:
             return {'ok': False, 'error': 'type is required'}
 
-        normalized = clean_entity.lower()
-        now = datetime.utcnow().isoformat()
+        row = PoliticalEntity(
+            entity=clean_entity,
+            normalized_entity=clean_entity.lower(),
+            type=clean_type,
+            full_name=(full_name or '').strip(),
+            description=(description or '').strip(),
+            created_at=datetime.now(timezone.utc),
+        )
 
         try:
-            with self._get_conn() as conn:
-                cursor = conn.execute(
-                    '''
-                    INSERT INTO political_entities (
-                        entity, normalized_entity, type, full_name, description, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?)
-                    ''',
-                    (clean_entity, normalized, clean_type, full_name.strip(), description.strip(), now),
-                )
-                return {'ok': True, 'id': cursor.lastrowid}
-        except sqlite3.IntegrityError:
+            db.session.add(row)
+            db.session.commit()
+            return {'ok': True, 'id': row.id}
+        except IntegrityError:
+            db.session.rollback()
             return {'ok': False, 'error': 'Entity already exists for this type'}
         except Exception as exc:
+            db.session.rollback()
             return {'ok': False, 'error': str(exc)}
 
     # Deletes an entity by ID, returns True if deleted, False if not found
     def delete_entity(self, entity_id: int) -> bool:
-        with self._get_conn() as conn:
-            cursor = conn.execute('DELETE FROM political_entities WHERE id = ?', (entity_id,))
-            return cursor.rowcount > 0
+        row = PoliticalEntity.query.get(entity_id)
+        if row is None:
+            return False
+        db.session.delete(row)
+        db.session.commit()
+        return True
 
-    # Extracts political entities from text by matching against database entries, returns list of matches with metadata
-    def extract_entities(self, text: str) -> List[Dict]:
+    # Extracts political entities from text by matching against database entries, returns list of matches with metadata.
+    # `entities` can be pre-fetched (via list_entities()) and passed in to avoid a DB round-trip per call —
+    # batch_analysis_service does this to avoid re-querying every entity on every row of a batch.
+    def extract_entities(self, text: str, entities: Optional[List[Dict]] = None) -> List[Dict]:
         normalized_text = (text or '').lower()
-        entities = self.list_entities()
+        if entities is None:
+            entities = self.list_entities()
         matches: List[Dict] = []
         seen = set()
 

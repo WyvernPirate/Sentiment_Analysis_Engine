@@ -1,6 +1,5 @@
 import re
 from typing import List, Tuple, Dict
-from transformers import pipeline
 
 
 class SentimentService:
@@ -28,7 +27,11 @@ class SentimentService:
     def pipeline(self):
         if self._pipeline is None:
             try:
-                self._pipeline = pipeline(
+                # Imported lazily so the rest of the app (routes, migrations,
+                # tests) can be loaded without requiring transformers/torch
+                # to be installed unless sentiment inference actually runs.
+                from transformers import pipeline as hf_pipeline
+                self._pipeline = hf_pipeline(
                     "sentiment-analysis",
                     model="cardiffnlp/twitter-roberta-base-sentiment-latest"
                 )

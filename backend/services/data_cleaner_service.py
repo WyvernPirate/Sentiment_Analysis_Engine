@@ -1,6 +1,6 @@
 # This module defines the DataCleanerService class, responsible for cleaning and normalizing raw social media data.
 import re
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from config import Config
 from services.lexicon_service import lexicon_service
@@ -44,8 +44,11 @@ class DataCleanerService:
         return cleaned.strip().lower()
 
     # This method calculates a simple relevance score based on the presence of configured keywords and hashtags.
-    def _relevance_score(self, normalized_text: str) -> int:
-        political_terms = self._build_dynamic_political_terms()
+    # `political_terms` can be pre-computed once per batch (see clean_records) and passed in, to avoid rebuilding
+    # the same DB-backed + lexicon-backed term set (a real per-record perf cost) on every single record.
+    def _relevance_score(self, normalized_text: str, political_terms: Optional[List[str]] = None) -> int:
+        if political_terms is None:
+            political_terms = self._build_dynamic_political_terms()
         score = 0
         for term in political_terms:
             if term and term in normalized_text:
@@ -56,13 +59,14 @@ class DataCleanerService:
         return self._build_dynamic_political_terms()
 
     # This method applies normalization and relevance scoring to a single record, determining if it should be kept or dropped.
-    def _clean_record(self, record: Dict, filter_mode: str = 'relaxed') -> Tuple[bool, Dict, str]:
+    def _clean_record(self, record: Dict, filter_mode: str = 'relaxed', political_terms: Optional[List[str]] = None) -> Tuple[bool, Dict, str]:
         raw_text = record.get('text_raw', '')
         normalized_text = self.normalize_text(raw_text)
         filter_mode = (filter_mode or 'relaxed').strip().lower()
-        political_terms_used = len(self._build_dynamic_political_terms())
+        if political_terms is None:
+            political_terms = self._build_dynamic_political_terms()
 
-        relevance_score = self._relevance_score(normalized_text)
+        relevance_score = self._relevance_score(normalized_text, political_terms=political_terms)
 
         if filter_mode == 'strict':
             if len(normalized_text) < 12:
@@ -77,7 +81,7 @@ class DataCleanerService:
             'relevance_score': relevance_score,
             'cleaned': True,
             'filter_mode': filter_mode,
-            'political_terms_used': political_terms_used,
+            'political_terms_used': len(political_terms),
             'relevance_label': 'relevant' if relevance_score > 0 else 'unmatched'
         }
 
@@ -92,6 +96,10 @@ class DataCleanerService:
         if filter_mode not in ('relaxed', 'strict'):
             raise ValueError("filter_mode must be 'relaxed' or 'strict'")
 
+        # Compute the political-terms set once for the whole batch instead of once per record
+        # (it's DB-backed + lexicon-backed, so rebuilding it per record was a real perf cost).
+        political_terms = self._build_dynamic_political_terms()
+
         dedupe = set()
         cleaned_records: List[Dict] = []
         dropped = {
@@ -101,7 +109,7 @@ class DataCleanerService:
         }
 
         for record in records:
-            keep, cleaned, reason = self._clean_record(record, filter_mode=filter_mode)
+            keep, cleaned, reason = self._clean_record(record, filter_mode=filter_mode, political_terms=political_terms)
             if not keep:
                 dropped[reason] = dropped.get(reason, 0) + 1
                 continue

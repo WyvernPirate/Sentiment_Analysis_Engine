@@ -1,300 +1,201 @@
 #!/usr/bin/env python3
 """
-Setswana Lexicon Manager for Botswana Political Sentiment Analysis
-Handles dynamic lexicon expansion, training data collection, and model improvement
+Setswana Lexicon Manager for Botswana Political Sentiment Analysis.
+
+Backed by the LexiconEntry table (see models.py) instead of a JSON file
+that got rewritten whole on every edit — that approach had no locking, so
+concurrent writers could corrupt or lose data. Per-word CRUD now goes
+straight to the database; `self.lexicon` is kept as an in-memory dict
+projection (same category -> word -> details shape callers already expect)
+so the rest of the app didn't need to change.
 """
 
-import json
-import os
 import csv
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Tuple, Optional
-import re
+
+from extensions import db
+from models import LexiconEntry
+from services.lexicon_defaults import DEFAULT_LEXICON
+
+CATEGORIES = ('common_words', 'positive', 'negative', 'political', 'botswana_specific')
+
 
 class SetswanaLexiconManager:
-    def __init__(self, lexicon_file='data/setswana_lexicon.json'):
-        self.lexicon_file = lexicon_file
-        self.ensure_data_directory()
-        self.lexicon = self.load_lexicon()
-        
-    def ensure_data_directory(self):
-        """Create data directory if it doesn't exist"""
-        os.makedirs('data', exist_ok=True)
-        os.makedirs('data/training_data', exist_ok=True)
-        os.makedirs('data/user_contributions', exist_ok=True)
-    
-    def load_lexicon(self) -> Dict:
-        """Load lexicon from file or create default"""
-        if os.path.exists(self.lexicon_file):
-            try:
-                with open(self.lexicon_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
-            except Exception as e:
-                print(f"Error loading lexicon: {e}, using default")
-        
-        return self.get_default_lexicon()
-    
-    def save_lexicon(self):
-        """Save lexicon to file"""
-        try:
-            with open(self.lexicon_file, 'w', encoding='utf-8') as f:
-                json.dump(self.lexicon, f, ensure_ascii=False, indent=2)
-            return True
-        except Exception as e:
-            print(f"Error saving lexicon: {e}")
-            return False
-    
-    def get_default_lexicon(self) -> Dict:
-        """Enhanced default Setswana lexicon with Botswana political context"""
-        return {
-            'metadata': {
-                'version': '1.0',
-                'last_updated': datetime.now().isoformat(),
-                'total_words': 0,
-                'contributors': ['system'],
-                'sources': ['initial_setup']
-            },
-            'common_words': {
-                # Basic Setswana words
-                'ke': {'meaning': 'I am/it is', 'frequency': 'very_high'},
-                'ga': {'meaning': 'not/no', 'frequency': 'very_high'},
-                'le': {'meaning': 'and/with', 'frequency': 'very_high'},
-                'mo': {'meaning': 'in/at', 'frequency': 'high'},
-                'go': {'meaning': 'to/at', 'frequency': 'high'},
-                'ba': {'meaning': 'they/people', 'frequency': 'high'},
-                'se': {'meaning': 'it/thing', 'frequency': 'high'},
-                'di': {'meaning': 'things/plural', 'frequency': 'high'},
-                'bo': {'meaning': 'abstract noun prefix', 'frequency': 'medium'},
-                'ma': {'meaning': 'plural prefix', 'frequency': 'medium'},
-                'o': {'meaning': 'he/she/it', 'frequency': 'very_high'},
-                'a': {'meaning': 'he/she (subject)', 'frequency': 'high'},
-                'ya': {'meaning': 'of/goes', 'frequency': 'high'},
-                'wa': {'meaning': 'of/you', 'frequency': 'high'},
-                'la': {'meaning': 'that/eat', 'frequency': 'medium'},
-                'sa': {'meaning': 'still/not yet', 'frequency': 'medium'},
-                'fa': {'meaning': 'where/give', 'frequency': 'medium'},
-                'ka': {'meaning': 'with/by', 'frequency': 'high'},
-                'na': {'meaning': 'with/have', 'frequency': 'high'},
-                'ne': {'meaning': 'was/were', 'frequency': 'medium'},
-                'ra': {'meaning': 'we', 'frequency': 'medium'},
-                'ta': {'meaning': 'will/shall', 'frequency': 'medium'},
-                'tla': {'meaning': 'will come', 'frequency': 'medium'}
-            },
-            'positive': {
-                # Positive sentiment words
-                'monate': {'meaning': 'nice/pleasant', 'intensity': 'medium', 'context': 'general'},
-                'sentle': {'meaning': 'good/beautiful', 'intensity': 'medium', 'context': 'general'},
-                'rata': {'meaning': 'love/like', 'intensity': 'high', 'context': 'emotion'},
-                'itumelela': {'meaning': 'happy/glad', 'intensity': 'high', 'context': 'emotion'},
-                'siame': {'meaning': 'good/fine', 'intensity': 'medium', 'context': 'general'},
-                'botoka': {'meaning': 'better', 'intensity': 'medium', 'context': 'comparison'},
-                'molemo': {'meaning': 'good', 'intensity': 'medium', 'context': 'general'},
-                'kgotso': {'meaning': 'peace', 'intensity': 'high', 'context': 'political'},
-                'boitumelo': {'meaning': 'happiness', 'intensity': 'high', 'context': 'emotion'},
-                'thabo': {'meaning': 'joy', 'intensity': 'high', 'context': 'emotion'},
-                'kgotla': {'meaning': 'traditional court/good governance', 'intensity': 'medium', 'context': 'political'},
-                'kagiso': {'meaning': 'peace', 'intensity': 'high', 'context': 'political'},
-                'tshiamo': {'meaning': 'justice/fairness', 'intensity': 'high', 'context': 'political'},
-                'boammaaruri': {'meaning': 'truth/honesty', 'intensity': 'high', 'context': 'political'},
-                'kutlwelobotlhoko': {'meaning': 'compassion', 'intensity': 'high', 'context': 'emotion'},
-                'pabalesego': {'meaning': 'protection/safety', 'intensity': 'medium', 'context': 'political'}
-            },
-            'negative': {
-                # Negative sentiment words
-                'botlhoko': {'meaning': 'painful/bad', 'intensity': 'high', 'context': 'general'},
-                'bosula': {'meaning': 'bad/evil', 'intensity': 'high', 'context': 'general'},
-                'hutsafala': {'meaning': 'terrible', 'intensity': 'very_high', 'context': 'general'},
-                'maswe': {'meaning': 'bad things', 'intensity': 'medium', 'context': 'general'},
-                'bogale': {'meaning': 'fierce/harsh', 'intensity': 'high', 'context': 'general'},
-                'boikepo': {'meaning': 'selfishness', 'intensity': 'medium', 'context': 'character'},
-                'khutsafalo': {'meaning': 'sadness', 'intensity': 'high', 'context': 'emotion'},
-                'tlhong': {'meaning': 'shame', 'intensity': 'medium', 'context': 'emotion'},
-                'mathata': {'meaning': 'problems', 'intensity': 'medium', 'context': 'general'},
-                'kgalefo': {'meaning': 'anger', 'intensity': 'high', 'context': 'emotion'},
-                'boferefere': {'meaning': 'corruption', 'intensity': 'very_high', 'context': 'political'},
-                'tlhaelo': {'meaning': 'lack/shortage', 'intensity': 'medium', 'context': 'general'},
-                'kgatelelo': {'meaning': 'oppression', 'intensity': 'very_high', 'context': 'political'},
-                'tlhokafalo': {'meaning': 'poverty', 'intensity': 'high', 'context': 'social'},
-                'dikgwetlho': {'meaning': 'challenges/difficulties', 'intensity': 'medium', 'context': 'general'}
-            },
-            'political': {
-                # Political terms
-                'mmuso': {'meaning': 'government', 'type': 'institution', 'context': 'governance'},
-                'setšhaba': {'meaning': 'nation', 'type': 'collective', 'context': 'national'},
-                'batho': {'meaning': 'people', 'type': 'collective', 'context': 'social'},
-                'polotiki': {'meaning': 'politics', 'type': 'concept', 'context': 'political'},
-                'kgethololo': {'meaning': 'election', 'type': 'process', 'context': 'democratic'},
-                'palamente': {'meaning': 'parliament', 'type': 'institution', 'context': 'legislative'},
-                'boeteledipele': {'meaning': 'leadership', 'type': 'concept', 'context': 'governance'},
-                'puso': {'meaning': 'rule/government', 'type': 'concept', 'context': 'governance'},
-                'dikgethololo': {'meaning': 'elections', 'type': 'process', 'context': 'democratic'},
-                'modulasetilo': {'meaning': 'president', 'type': 'position', 'context': 'executive'},
-                'tonakgolo': {'meaning': 'prime minister', 'type': 'position', 'context': 'executive'},
-                'lekgotla': {'meaning': 'council/committee', 'type': 'institution', 'context': 'governance'},
-                'molao': {'meaning': 'law', 'type': 'concept', 'context': 'legal'},
-                'tshiamelo': {'meaning': 'justice', 'type': 'concept', 'context': 'legal'},
-                'tokololo': {'meaning': 'freedom', 'type': 'concept', 'context': 'rights'},
-                'ditshwanelo': {'meaning': 'rights', 'type': 'concept', 'context': 'rights'},
-                'thulaganyo': {'meaning': 'development', 'type': 'concept', 'context': 'economic'},
-                'ikonomi': {'meaning': 'economy', 'type': 'concept', 'context': 'economic'},
-                'thuto': {'meaning': 'education', 'type': 'sector', 'context': 'social'},
-                'boitekanelo': {'meaning': 'health', 'type': 'sector', 'context': 'social'}
-            },
-            'botswana_specific': {
-                # Botswana-specific terms
-                'motswana': {'meaning': 'Botswana citizen', 'type': 'identity', 'context': 'national'},
-                'batswana': {'meaning': 'Botswana people', 'type': 'collective', 'context': 'national'},
-                'bogosi': {'meaning': 'chieftainship', 'type': 'traditional', 'context': 'governance'},
-                'kgosi': {'meaning': 'chief', 'type': 'traditional', 'context': 'leadership'},
-                'dikgosi': {'meaning': 'chiefs', 'type': 'traditional', 'context': 'leadership'},
-                'ntlo': {'meaning': 'house of chiefs', 'type': 'institution', 'context': 'traditional'},
-                'setswana': {'meaning': 'Tswana language/culture', 'type': 'cultural', 'context': 'identity'},
-                'pula': {'meaning': 'rain/currency', 'type': 'symbol', 'context': 'national'},
-                'kagisano': {'meaning': 'social harmony', 'type': 'value', 'context': 'social'},
-                'botho': {'meaning': 'humanity/ubuntu', 'type': 'philosophy', 'context': 'cultural'}
-            }
+    def __init__(self):
+        # Deliberately does NOT query the database here: this singleton is
+        # constructed at module-import time, before the Flask app (and thus
+        # the DB connection) exists. Call refresh() once an app context is
+        # available (create_app() does this at startup); routes that read
+        # lexicon data also call refresh() to stay correct across workers.
+        self.lexicon: Dict = {category: {} for category in CATEGORIES}
+        self.lexicon['metadata'] = {
+            'version': '2.0',
+            'last_updated': None,
+            'total_words': 0,
+            'contributors': ['system'],
+            'sources': ['database'],
         }
-    
+
+    def refresh(self) -> Dict:
+        """Rebuild the in-memory dict projection from the database."""
+        lexicon: Dict = {category: {} for category in CATEGORIES}
+        last_updated = None
+
+        for entry in LexiconEntry.query.all():
+            lexicon.setdefault(entry.category, {})[entry.word] = entry.to_details_dict()
+            modified = entry.last_modified or entry.added_date
+            if modified and (last_updated is None or modified > last_updated):
+                last_updated = modified
+
+        total_words = sum(len(words) for words in lexicon.values())
+        lexicon['metadata'] = {
+            'version': '2.0',
+            'last_updated': (last_updated or datetime.now(timezone.utc)).isoformat(),
+            'total_words': total_words,
+            'contributors': ['system'],
+            'sources': ['database'],
+        }
+
+        self.lexicon = lexicon
+        return self.lexicon
+
+    def get_default_lexicon(self) -> Dict:
+        """Retained for callers that want the baseline seed content directly."""
+        return DEFAULT_LEXICON
+
     def add_word(self, word: str, category: str, meaning: str, **kwargs) -> bool:
-        """Add a new word to the lexicon"""
+        """Add (or update, if it already exists) a word in the lexicon."""
         try:
             word = word.lower().strip()
-            
-            if category not in self.lexicon:
-                self.lexicon[category] = {}
-            
-            # Create word entry
-            word_entry = {
-                'meaning': meaning,
-                'added_date': datetime.now().isoformat(),
-                'source': kwargs.get('source', 'user_contribution'),
-                **kwargs
-            }
-            
-            self.lexicon[category][word] = word_entry
-            
-            # Update metadata
-            self.lexicon['metadata']['last_updated'] = datetime.now().isoformat()
-            self.lexicon['metadata']['total_words'] = self.count_total_words()
-            
-            return self.save_lexicon()
-            
+            entry = LexiconEntry.query.filter_by(word=word, category=category).first()
+
+            if entry is None:
+                entry = LexiconEntry(word=word, category=category, source=kwargs.get('source', 'user_contribution'))
+                db.session.add(entry)
+            else:
+                entry.last_modified = datetime.now(timezone.utc)
+
+            entry.meaning = meaning
+            for key in ('intensity', 'context', 'type', 'frequency'):
+                if key in kwargs and kwargs[key]:
+                    setattr(entry, key, kwargs[key])
+
+            db.session.commit()
+            self.refresh()
+            return True
+
         except Exception as e:
+            db.session.rollback()
             print(f"Error adding word: {e}")
             return False
-    
+
     def remove_word(self, word: str, category: str) -> bool:
-        """Remove a word from the lexicon"""
+        """Remove a word from the lexicon."""
         try:
             word = word.lower().strip()
-            
-            if category in self.lexicon and word in self.lexicon[category]:
-                del self.lexicon[category][word]
-                
-                # Update metadata
-                self.lexicon['metadata']['last_updated'] = datetime.now().isoformat()
-                self.lexicon['metadata']['total_words'] = self.count_total_words()
-                
-                return self.save_lexicon()
-            
-            return False
-            
+            entry = LexiconEntry.query.filter_by(word=word, category=category).first()
+            if entry is None:
+                return False
+
+            db.session.delete(entry)
+            db.session.commit()
+            self.refresh()
+            return True
+
         except Exception as e:
+            db.session.rollback()
             print(f"Error removing word: {e}")
             return False
-    
+
     def update_word(self, word: str, category: str, **updates) -> bool:
-        """Update an existing word in the lexicon"""
+        """Update an existing word in the lexicon."""
         try:
             word = word.lower().strip()
-            
-            if category in self.lexicon and word in self.lexicon[category]:
-                self.lexicon[category][word].update(updates)
-                self.lexicon[category][word]['last_modified'] = datetime.now().isoformat()
-                
-                # Update metadata
-                self.lexicon['metadata']['last_updated'] = datetime.now().isoformat()
-                
-                return self.save_lexicon()
-            
-            return False
-            
+            entry = LexiconEntry.query.filter_by(word=word, category=category).first()
+            if entry is None:
+                return False
+
+            for key, value in updates.items():
+                if hasattr(entry, key) and key not in ('id', 'word', 'category'):
+                    setattr(entry, key, value)
+            entry.last_modified = datetime.now(timezone.utc)
+
+            db.session.commit()
+            self.refresh()
+            return True
+
         except Exception as e:
+            db.session.rollback()
             print(f"Error updating word: {e}")
             return False
-    
+
     def search_words(self, query: str, category: Optional[str] = None) -> List[Dict]:
-        """Search for words in the lexicon"""
+        """Search for words in the lexicon."""
+        query = (query or '').lower().strip()
         results = []
-        query = query.lower().strip()
-        
-        categories_to_search = [category] if category else self.lexicon.keys()
-        
-        for cat in categories_to_search:
+
+        for cat, words in self.lexicon.items():
             if cat == 'metadata':
                 continue
-                
-            if cat in self.lexicon:
-                for word, details in self.lexicon[cat].items():
-                    if (query in word or 
-                        query in details.get('meaning', '').lower() or
+            if category and cat != category:
+                continue
+
+            for word, details in words.items():
+                if (query in word or
+                        query in str(details.get('meaning', '')).lower() or
                         any(query in str(v).lower() for v in details.values())):
-                        
-                        results.append({
-                            'word': word,
-                            'category': cat,
-                            'details': details
-                        })
-        
+                    results.append({'word': word, 'category': cat, 'details': details})
+
         return results
-    
+
     def get_category_stats(self) -> Dict:
-        """Get statistics for each category"""
+        """Get statistics for each category."""
         stats = {}
-        
+        now = datetime.now(timezone.utc)
+
         for category, words in self.lexicon.items():
             if category == 'metadata':
                 continue
-                
-            stats[category] = {
-                'word_count': len(words),
-                'recent_additions': len([
-                    w for w in words.values() 
-                    if 'added_date' in w and 
-                    (datetime.now() - datetime.fromisoformat(w['added_date'])).days <= 7
-                ])
-            }
-        
+
+            recent = 0
+            for details in words.values():
+                added_date = details.get('added_date')
+                if added_date:
+                    try:
+                        added_dt = datetime.fromisoformat(added_date)
+                        if added_dt.tzinfo is None:
+                            added_dt = added_dt.replace(tzinfo=timezone.utc)
+                        if (now - added_dt).days <= 7:
+                            recent += 1
+                    except ValueError:
+                        pass
+
+            stats[category] = {'word_count': len(words), 'recent_additions': recent}
+
         return stats
-    
+
     def count_total_words(self) -> int:
-        """Count total words in lexicon"""
-        total = 0
-        for category, words in self.lexicon.items():
-            if category != 'metadata':
-                total += len(words)
-        return total
-    
+        """Count total words in lexicon."""
+        return sum(len(words) for category, words in self.lexicon.items() if category != 'metadata')
+
     def export_to_csv(self, filename: str) -> bool:
-        """Export lexicon to CSV for training data"""
+        """Export lexicon to CSV for training data."""
         try:
             with open(filename, 'w', newline='', encoding='utf-8') as csvfile:
                 writer = csv.writer(csvfile)
                 writer.writerow(['word', 'category', 'meaning', 'sentiment', 'context', 'intensity'])
-                
+
                 for category, words in self.lexicon.items():
                     if category == 'metadata':
                         continue
-                    
-                    # Determine sentiment based on category
-                    sentiment = 0  # neutral
+
+                    sentiment = 1
                     if category == 'positive':
                         sentiment = 2
                     elif category == 'negative':
                         sentiment = 0
-                    else:
-                        sentiment = 1
-                    
+
                     for word, details in words.items():
                         writer.writerow([
                             word,
@@ -302,101 +203,96 @@ class SetswanaLexiconManager:
                             details.get('meaning', ''),
                             sentiment,
                             details.get('context', ''),
-                            details.get('intensity', 'medium')
+                            details.get('intensity', 'medium'),
                         ])
-            
+
             return True
-            
+
         except Exception as e:
             print(f"Error exporting to CSV: {e}")
             return False
-    
+
     def import_from_csv(self, filename: str) -> bool:
-        """Import words from CSV file"""
+        """Import words from CSV file."""
         try:
             with open(filename, 'r', encoding='utf-8') as csvfile:
                 reader = csv.DictReader(csvfile)
-                
+
                 for row in reader:
                     word = row.get('word', '').strip()
                     category = row.get('category', 'common_words')
                     meaning = row.get('meaning', '')
-                    
+
                     if word and meaning:
                         self.add_word(
-                            word, 
-                            category, 
+                            word,
+                            category,
                             meaning,
                             context=row.get('context', ''),
                             intensity=row.get('intensity', 'medium'),
-                            source='csv_import'
+                            source='csv_import',
                         )
-            
+
             return True
-            
+
         except Exception as e:
             print(f"Error importing from CSV: {e}")
             return False
-    
+
     def generate_training_sentences(self, count: int = 100) -> List[Tuple[str, int]]:
-        """Generate training sentences using the lexicon"""
+        """Generate template-based training sentences using the lexicon.
+
+        NOTE: these are synthetic/template-generated, not organic text —
+        useful as a bootstrap scaffold only, not a substitute for real
+        labeled data.
+        """
+        import random
+
         sentences = []
-        
-        # Sentence templates
         templates = {
             'positive': [
                 "Ke {positive} {political}",
                 "{political} e {positive} thata",
                 "Batho ba {positive} {political}",
                 "{political} o dira {positive}",
-                "Re {positive} ka {political}"
+                "Re {positive} ka {political}",
             ],
             'negative': [
                 "Ke {negative} {political}",
-                "{political} e {negative} thata", 
+                "{political} e {negative} thata",
                 "Batho ba {negative} {political}",
                 "{political} o dira {negative}",
-                "Re {negative} ka {political}"
+                "Re {negative} ka {political}",
             ],
             'neutral': [
                 "Ke bona {political}",
                 "{political} e teng",
                 "Batho ba bua ka {political}",
                 "Re itse {political}",
-                "{political} o kae"
-            ]
+                "{political} o kae",
+            ],
         }
-        
-        # Generate sentences
-        import random
-        
+
         for _ in range(count):
             sentiment_type = random.choice(['positive', 'negative', 'neutral'])
             template = random.choice(templates[sentiment_type])
-            
-            # Fill template
+
             if '{positive}' in template:
-                pos_word = random.choice(list(self.lexicon['positive'].keys()))
-                template = template.replace('{positive}', pos_word)
-            
+                template = template.replace('{positive}', random.choice(list(self.lexicon['positive'].keys())))
             if '{negative}' in template:
-                neg_word = random.choice(list(self.lexicon['negative'].keys()))
-                template = template.replace('{negative}', neg_word)
-            
+                template = template.replace('{negative}', random.choice(list(self.lexicon['negative'].keys())))
             if '{political}' in template:
-                pol_word = random.choice(list(self.lexicon['political'].keys()))
-                template = template.replace('{political}', pol_word)
-            
-            # Assign sentiment label
-            label = 1  # neutral
+                template = template.replace('{political}', random.choice(list(self.lexicon['political'].keys())))
+
+            label = 1
             if sentiment_type == 'positive':
                 label = 2
             elif sentiment_type == 'negative':
                 label = 0
-            
+
             sentences.append((template, label))
-        
+
         return sentences
 
-# Global lexicon manager instance
+
 lexicon_manager = SetswanaLexiconManager()

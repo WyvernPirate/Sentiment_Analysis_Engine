@@ -3,12 +3,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class Config:
     # Flask Configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    
+
     # Database Configuration
-    DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///botswana_sentiment.db'
+    # Absolute path, so the DB location doesn't depend on the process's CWD
+    # (e.g. `flask db migrate` vs `python app.py` vs a WSGI server can all
+    # have different working directories).
+    DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(BASE_DIR, 'data', 'botswana_sentiment.db')
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     

@@ -4,12 +4,11 @@ Processes a collected batch of social records through the sentiment pipeline,
 producing per-row analysis results and aggregate statistics.
 """
 
-import json
-import os
-import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
+from extensions import db
+from models import AnalysisJob
 from services.sentiment_service import sentiment_service
 from services.lexicon_service import lexicon_service
 from services.political_entity_service import political_entity_service
@@ -17,11 +16,6 @@ from services.raw_data_manager import raw_data_manager
 
 
 class BatchAnalysisService:
-
-    RESULTS_DIR = os.path.join('data', 'analysis_results')
-
-    def __init__(self):
-        os.makedirs(self.RESULTS_DIR, exist_ok=True)
 
     def analyze_batch(self, collection_id: str) -> Dict:
         """
@@ -31,7 +25,7 @@ class BatchAnalysisService:
         2. Refresh lexicon for up-to-date political word matching
         3. Analyze each row: sentiment, confidence, trigger words, political words, entities
         4. Compute aggregate statistics
-        5. Persist results to disk
+        5. Persist results to the database
         6. Return full result set
 
         Returns dict with: job_id, filename, analyzed_at, rows[], aggregate{}
@@ -49,6 +43,11 @@ class BatchAnalysisService:
         # Refresh lexicon for political word matching
         lexicon_service.refresh_lexicon()
         lexicon = lexicon_service.legacy_lexicon
+
+        # Fetch entities once for the whole batch instead of once per row
+        # (extract_entities() previously re-queried every entity per row — an
+        # N+1 pattern that got slower as both the entity list and batch grew).
+        entities = political_entity_service.list_entities()
 
         # Pre-collect all texts for batch inference
         valid_records = []
@@ -74,17 +73,17 @@ class BatchAnalysisService:
 
         for idx, (record, (sentiment, confidence, details)) in enumerate(zip(valid_records, batch_results)):
             text = texts_to_analyze[idx]
-            
+
             # Match political words from lexicon
             matched_political = sentiment_service.match_political_words(text, lexicon)
 
-            # Extract political entities from database
-            political_entities = political_entity_service.extract_entities(text)
+            # Extract political entities from the pre-fetched list (no per-row DB query)
+            political_entities = political_entity_service.extract_entities(text, entities=entities)
 
             # Extract trigger words - Use basic mode for batch to avoid LOO performance hit
             exclude_names = [e.get('entity', '') for e in political_entities]
             trigger_words = sentiment_service.extract_basic_trigger_words(
-                text, 
+                text,
                 exclude_words=exclude_names
             )
 
@@ -147,79 +146,44 @@ class BatchAnalysisService:
             reverse=True,
         )[:20]
 
-        # Build aggregate
-        aggregate = {
-            'total_rows': total_rows,
-            'sentiment_distribution': sentiment_counts,
-            'avg_confidence': avg_confidence,
-            'top_trigger_words': top_trigger_words,
-            'top_entities': top_entities,
-            'model_used': analyzed_rows[0]['model_used'] if analyzed_rows else 'unknown',
-        }
+        model_used = analyzed_rows[0]['model_used'] if analyzed_rows else 'unknown'
 
-        # Build result
+        # Persist to the database
         job_id = f'analysis-{collection_id}-{datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")}'
-        result = {
-            'job_id': job_id,
-            'collection_id': collection_id,
-            'filename': os.path.basename(raw_file),
-            'analyzed_at': datetime.utcnow().isoformat(),
-            'rows': analyzed_rows,
-            'aggregate': aggregate,
-        }
+        job = AnalysisJob(
+            job_id=job_id,
+            collection_id=collection_id,
+            filename=raw_file.rsplit('/', 1)[-1].rsplit('\\', 1)[-1],
+            analyzed_at=datetime.now(timezone.utc),
+            total_rows=total_rows,
+            avg_confidence=avg_confidence,
+            model_used=model_used,
+            sentiment_distribution=sentiment_counts,
+            top_trigger_words=top_trigger_words,
+            top_entities=top_entities,
+            rows=analyzed_rows,
+        )
+        db.session.add(job)
+        db.session.commit()
 
-        # Persist to disk
-        result_path = os.path.join(self.RESULTS_DIR, f'{job_id}.json')
-        with open(result_path, 'w', encoding='utf-8') as f:
-            json.dump(result, f, ensure_ascii=False, indent=2)
-
-        return result
+        return job.to_full_dict()
 
     def list_jobs(self, limit: int = 20) -> List[Dict]:
         """List past analysis jobs (metadata only, no row data)."""
-        jobs = []
-        if not os.path.exists(self.RESULTS_DIR):
-            return jobs
-
-        files = sorted(
-            [f for f in os.listdir(self.RESULTS_DIR) if f.endswith('.json')],
-            reverse=True,
+        jobs = (
+            AnalysisJob.query
+            .order_by(AnalysisJob.analyzed_at.desc())
+            .limit(limit)
+            .all()
         )
-
-        for filename in files[:limit]:
-            filepath = os.path.join(self.RESULTS_DIR, filename)
-            try:
-                with open(filepath, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                jobs.append({
-                    'job_id': data.get('job_id', ''),
-                    'collection_id': data.get('collection_id', ''),
-                    'filename': data.get('filename', ''),
-                    'analyzed_at': data.get('analyzed_at', ''),
-                    'row_count': data.get('aggregate', {}).get('total_rows', 0),
-                    'sentiment_summary': data.get('aggregate', {}).get('sentiment_distribution', {}),
-                })
-            except (json.JSONDecodeError, OSError):
-                continue
-
-        return jobs
-
-    JOB_ID_RE = re.compile(r'^[A-Za-z0-9._-]+$')
+        return [job.to_summary_dict() for job in jobs]
 
     def get_job(self, job_id: str) -> Optional[Dict]:
         """Retrieve full results for a specific analysis job."""
-        if not job_id or not self.JOB_ID_RE.match(job_id):
+        if not job_id:
             return None
-
-        result_path = os.path.join(self.RESULTS_DIR, f'{job_id}.json')
-        if not os.path.exists(result_path):
-            return None
-
-        try:
-            with open(result_path, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except (json.JSONDecodeError, OSError):
-            return None
+        job = AnalysisJob.query.filter_by(job_id=job_id).first()
+        return job.to_full_dict() if job else None
 
 
 batch_analysis_service = BatchAnalysisService()

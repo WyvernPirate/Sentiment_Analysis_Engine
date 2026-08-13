@@ -6,11 +6,14 @@ lexicon_bp = Blueprint('lexicon', __name__)
 
 @lexicon_bp.route('/', methods=['GET'])
 def get_lexicon():
+    lexicon_manager.refresh()
+    lexicon_service.refresh_lexicon()
     return jsonify(lexicon_service.get_stats())
 
 # Endpoint to get lexicon stats and metadata
 @lexicon_bp.route('/stats', methods=['GET'])
 def get_stats():
+    lexicon_manager.refresh()
     return jsonify({
         'category_stats': lexicon_manager.get_category_stats(),
         'metadata': lexicon_manager.lexicon.get('metadata', {}),
@@ -25,6 +28,7 @@ def search_lexicon():
     if not query:
         return jsonify({'results': [], 'count': 0, 'query': query, 'category': category})
 
+    lexicon_manager.refresh()
     results = lexicon_manager.search_words(query, category)
     return jsonify({'results': results, 'count': len(results), 'query': query, 'category': category})
 

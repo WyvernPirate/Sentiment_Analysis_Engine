@@ -1,19 +1,25 @@
-# This module defines the RawDataManager class, responsible for managing the storage and retrieval of raw social media data batches, as well as logging collection metadata and saving cleaned data.
+# This module defines the RawDataManager class, responsible for managing the storage and retrieval of raw social media data batches.
+# Large raw/cleaned payloads stay on disk as JSONL files (write-once, append-heavy, no need for relational structure);
+# the collection index itself is DB-backed (see models.Collection) instead of an append-only JSONL log that had to be
+# linearly scanned (up to the last 1000 entries) on every lookup.
 import json
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, List, Optional
 
-# The RawDataManager class provides methods to save raw data batches, list collections, retrieve specific collections, load raw records, and save cleaned data along with reports.
+from extensions import db
+from models import Collection
+
+
 class RawDataManager:
     def __init__(self, base_data_dir: str = 'data'):
         self.base_data_dir = base_data_dir
         self.raw_dir = os.path.join(self.base_data_dir, 'raw_social_data')
         self.cleaned_dir = os.path.join(self.base_data_dir, 'cleaned_social_data')
-        self.collection_log_path = os.path.join(self.raw_dir, 'collection_log.jsonl')
 
         os.makedirs(self.raw_dir, exist_ok=True)
         os.makedirs(self.cleaned_dir, exist_ok=True)
+
     # This method creates a directory for the current day within the specified root directory, ensuring that data is organized by date.
     def _daily_dir(self, root: str) -> str:
         day = datetime.utcnow().strftime('%Y-%m-%d')
@@ -21,8 +27,7 @@ class RawDataManager:
         os.makedirs(target, exist_ok=True)
         return target
 
-
-    # This method saves a batch of raw records to a JSONL file, along with metadata about the collection, and logs the collection in a separate log file.
+    # This method saves a batch of raw records to a JSONL file, then indexes the collection in the database.
     def save_raw_batch(self, source: str, query: str, records: List[Dict], run_meta: Optional[Dict] = None) -> Dict:
         timestamp = datetime.utcnow().strftime('%Y%m%dT%H%M%SZ')
         collection_id = f"{source}-{timestamp}"
@@ -34,47 +39,35 @@ class RawDataManager:
             for record in records:
                 handle.write(json.dumps(record, ensure_ascii=False) + '\n')
 
-        # This is to capture all the 
-        entry = {
-            'collection_id': collection_id,
-            'source': source,
-            'query': query,
-            'count': len(records),
-            'raw_file': file_path,
-            'collected_at_utc': datetime.utcnow().isoformat(),
-            'run_meta': run_meta or {}
-        }
+        row = Collection(
+            collection_id=collection_id,
+            source=source,
+            search_query=query or '',
+            count=len(records),
+            raw_file=file_path,
+            collected_at_utc=datetime.now(timezone.utc),
+            run_meta=run_meta or {},
+        )
+        db.session.add(row)
+        db.session.commit()
 
-        with open(self.collection_log_path, 'a', encoding='utf-8') as handle:
-            handle.write(json.dumps(entry, ensure_ascii=False) + '\n')
+        return row.to_dict()
 
-        return entry
-
-    # This method lists recent collections of raw social media data, reading from the collection log file and returning a list of collection entries, limited by the specified number.
+    # This method lists recent collections, most-recent first, via an indexed DB query instead of a full log scan.
     def list_collections(self, limit: int = 20) -> List[Dict]:
-        if not os.path.exists(self.collection_log_path):
-            return []
+        rows = (
+            Collection.query
+            .order_by(Collection.collected_at_utc.desc())
+            .limit(limit)
+            .all()
+        )
+        return [row.to_dict() for row in rows]
 
-        entries: List[Dict] = []
-        with open(self.collection_log_path, 'r', encoding='utf-8') as handle:
-            for line in handle:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    entries.append(json.loads(line))
-                except json.JSONDecodeError:
-                    continue
-
-        return list(reversed(entries[-limit:]))
-
-    # This method retrieves a specific collection entry by its collection_id, searching through the recent collections and returning the matching entry if found.
+    # This method retrieves a specific collection entry by its collection_id via an indexed lookup.
     def get_collection(self, collection_id: str) -> Optional[Dict]:
-        for entry in self.list_collections(limit=1000):
-            if entry.get('collection_id') == collection_id:
-                return entry
-        return None
-    
+        row = Collection.query.filter_by(collection_id=collection_id).first()
+        return row.to_dict() if row else None
+
     # This method loads raw records from a specified JSONL file path, returning a list of records as dictionaries. It handles cases where the file may not exist or contain invalid JSON lines.
     def load_raw_records(self, raw_file_path: str) -> List[Dict]:
         records: List[Dict] = []
