@@ -107,7 +107,7 @@ class SetswanaLexiconManager:
                 'maswe': {'meaning': 'bad things', 'intensity': 'medium', 'context': 'general'},
                 'bogale': {'meaning': 'fierce/harsh', 'intensity': 'high', 'context': 'general'},
                 'boikepo': {'meaning': 'selfishness', 'intensity': 'medium', 'context': 'character'},
-                'kutlwelobotlhoko': {'meaning': 'sadness', 'intensity': 'high', 'context': 'emotion'},
+                'khutsafalo': {'meaning': 'sadness', 'intensity': 'high', 'context': 'emotion'},
                 'tlhong': {'meaning': 'shame', 'intensity': 'medium', 'context': 'emotion'},
                 'mathata': {'meaning': 'problems', 'intensity': 'medium', 'context': 'general'},
                 'kgalefo': {'meaning': 'anger', 'intensity': 'high', 'context': 'emotion'},

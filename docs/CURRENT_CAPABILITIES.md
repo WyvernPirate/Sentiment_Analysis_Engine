@@ -5,10 +5,9 @@ This document tracks the implemented features and the current status of the Sent
 ## Implemented Features
 
 ### 1. Sentiment Analysis
-- **Multilingual Support**: English (Transformer-based) and Setswana (Lexicon-based).
-- **Transformer Integration**: Uses `cardiffnlp/twitter-xlm-roberta-base-sentiment-latest` for high-accuracy English analysis.
-- **Setswana Context**: Custom lexicon with 200+ political and cultural terms specific to Botswana.
-- **Political Word Matching**: Pre-inference matching of political keywords.
+- **Transformer Integration**: Uses `cardiffnlp/twitter-roberta-base-sentiment-latest` (English) for sentiment classification. This is currently the only model used for scoring — Setswana and code-switched text are scored by this same English model, with no language-specific adaptation yet (see "In Progress / Planned").
+- **Setswana Context**: A hand-curated lexicon of 84 political and cultural terms specific to Botswana, used for keyword tagging and relevance filtering. It does not currently influence the sentiment score itself.
+- **Political Word Matching**: Pre-inference matching of political keywords, surfaced alongside the sentiment result for context.
 
 ### 2. Lexicon Management
 - **Dynamic Updates**: Add words via UI; available for analysis immediately without restart.
@@ -31,7 +30,7 @@ This document tracks the implemented features and the current status of the Sent
 - **Trend Visualization**: (In Progress) Visual representation of sentiment shifts.
 
 ## In Progress / Planned
-- **Setswana-English Code-Switching**: Enhanced detection of blended language sentences.
+- **Setswana-English Code-Switching**: Language detection and model routing for blended language sentences. (Note: an earlier version of this existed and was removed during a refactor; it is being rebuilt, not built for the first time.)
 - **Advanced Trend Analysis**: Historical sentiment tracking for specific political entities.
 - **Export Capabilities**: Export analyzed batches to CSV/Excel for external reporting.
 - **System Logs UI**: Complete integration of backend logging with the frontend "System Logs" page.

@@ -25,7 +25,7 @@ def get_logs():
 @system_bp.route('/event', methods=['POST'])
 def log_event():
     """Endpoint for services/frontend to log custom events."""
-    data = request.get_json()
+    data = request.get_json(silent=True) or {}
     level = data.get('level', 'INFO')
     message = data.get('message', '')
     

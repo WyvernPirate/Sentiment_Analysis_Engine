@@ -2,8 +2,8 @@ import React from 'react';
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders main app heading', () => {
+test('renders the dashboard shell without crashing', () => {
   render(<App />);
-  const headingElement = screen.getByText(/Sentiment Analysis Engine/i);
-  expect(headingElement).toBeInTheDocument();
+  const brandElement = screen.getByText(/COMMAND_CENTER/i);
+  expect(brandElement).toBeInTheDocument();
 });

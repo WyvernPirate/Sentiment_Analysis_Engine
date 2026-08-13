@@ -5,4 +5,5 @@ transformers==5.3.0
 torch==2.12.1
 requests==2.33.0
 python-dotenv==1.2.2
-twikit
+psutil==6.1.0
+twikit==2.3.3
