@@ -1,5 +1,7 @@
 # Botswana Political Sentiment Analysis Engine
 
+[![Backend CI](https://github.com/WyvernPirate/Sentiment_Analysis_Engine/actions/workflows/backend-ci.yml/badge.svg)](https://github.com/WyvernPirate/Sentiment_Analysis_Engine/actions/workflows/backend-ci.yml)
+
 A modular platform for analyzing political discourse in Botswana, supporting both English and Setswana linguistic contexts.
 
 ## Project Structure
