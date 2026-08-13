@@ -113,6 +113,7 @@ class AnalysisJob(db.Model):
     avg_confidence = db.Column(db.Float, default=0.0)
     model_used = db.Column(db.String(255), default='unknown')
     sentiment_distribution = db.Column(db.JSON, default=dict)
+    language_distribution = db.Column(db.JSON, default=dict)
     top_trigger_words = db.Column(db.JSON, default=list)
     top_entities = db.Column(db.JSON, default=list)
     rows = db.Column(db.JSON, default=list)
@@ -139,6 +140,7 @@ class AnalysisJob(db.Model):
             'aggregate': {
                 'total_rows': self.total_rows or 0,
                 'sentiment_distribution': self.sentiment_distribution or {},
+                'language_distribution': self.language_distribution or {},
                 'avg_confidence': self.avg_confidence or 0,
                 'top_trigger_words': self.top_trigger_words or [],
                 'top_entities': self.top_entities or [],

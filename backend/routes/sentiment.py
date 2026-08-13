@@ -1,5 +1,6 @@
 
 from flask import Blueprint, request, jsonify
+from config import Config
 from services.sentiment_service import sentiment_service
 from services.lexicon_service import lexicon_service
 from services.political_entity_service import political_entity_service
@@ -42,24 +43,25 @@ def test_examples():
 @sentiment_bp.route('/analyze', methods=['POST'])
 def analyze():
     """
-    Main sentiment analysis endpoint - Single-path English-only architecture
-    
+    Main sentiment analysis endpoint - language-aware architecture.
+
     Request:
     {
-      "text": "Text to analyze (English)"
+      "text": "Text to analyze (English, Setswana, or a mix of both)"
     }
-    
+
     Analysis Steps:
     1. Parse request, validate non-empty text
     2. Refresh lexicon to pick up words added via /api/lexicon/add (dynamic)
-    3. Call sentiment service pipeline (transformer or fallback):
-       - Stage 1: Political word matching (pre-tokenization)
-       - Stage 2: Transformer inference (cardiffnlp model)
-       - Stage 3: Extract trigger words (for UI)
-       - Stage 4: Extract political entities (hardcoded)
-    4. Assemble response with all metadata
-    5. Return JSON to frontend
-    
+    3. Call sentiment_service.analyze_sentiment, which:
+       - Detects language via Setswana-word-ratio against the lexicon
+       - English text -> the English-only model
+       - Setswana / Setswana-English text -> the multilingual model,
+         blended with a lexicon polarity signal
+    4. Extract trigger words, matched political words, and political entities
+    5. Assemble response with all metadata (including language_detected)
+    6. Return JSON to frontend
+
     Error Handling:
     - 400: No text provided
     - 500: Transformer failure (falls back to basic analysis)
@@ -78,26 +80,31 @@ def analyze():
         lexicon_service.refresh_lexicon()
         lexicon = lexicon_service.legacy_lexicon
 
-        #  STEP 2: ANALYSIS PIPELINE 
+        #  STEP 2: ANALYSIS PIPELINE
         # All methods in sentiment_service are stateless, work on per-request basis
-        
-        # English sentiment (transformer or fallback)
-        sentiment, confidence, details = sentiment_service.analyze_english_sentiment(text)
-        
+
+        # Language-aware sentiment: detects Setswana/code-switching and routes
+        # to the appropriate model (see sentiment_service.analyze_sentiment)
+        sentiment, confidence, details = sentiment_service.analyze_sentiment(
+            text, lexicon, use_code_switching=Config.USE_CODE_SWITCHING
+        )
+
         # Pre-tokenization political word matching (before transformer tokenizes)
         matched_political_words = sentiment_service.match_political_words(text, lexicon)
-        
+
         # Post-inference political entity extraction (database-backed)
         political_entities = political_entity_service.extract_entities(text)
-        
+
         # Trigger word extraction for UI display - passing sentiment for model-aware analysis
         sentiment_words = sentiment_service.extract_sentiment_trigger_words(text, target_sentiment=sentiment)
 
-        # STEP 3: RESPONSE ASSEMBLY 
+        # STEP 3: RESPONSE ASSEMBLY
         return jsonify({
             "sentiment": sentiment,
             "confidence": round(confidence, 3),  # Round to 3 decimals
             "model_used": details.get('model', 'unknown'),
+            "language_detected": details.get('language_detected', 'unknown'),
+            "code_switching": details.get('code_switching', False),
             "word_count": len(re.findall(r'\b\w+\b', text)),
             "matched_political_words": matched_political_words,  # User-curated, dynamic
             "sentiment_words": sentiment_words,  # Hardcoded trigger words

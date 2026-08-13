@@ -9,6 +9,7 @@ from typing import Dict, List, Optional
 
 from extensions import db
 from models import AnalysisJob
+from config import Config
 from services.sentiment_service import sentiment_service
 from services.lexicon_service import lexicon_service
 from services.political_entity_service import political_entity_service
@@ -61,15 +62,22 @@ class BatchAnalysisService:
         if not texts_to_analyze:
             raise ValueError(f'No valid text records found in collection: {collection_id}')
 
-        # Run batch sentiment analysis (MUCH faster)
-        batch_results = sentiment_service.analyze_english_sentiment_batch(texts_to_analyze)
+        # Run batch sentiment analysis (MUCH faster than per-row calls).
+        # Language-aware: English text goes through the English model, while
+        # Setswana/code-switched text is routed to the multilingual model and
+        # blended with a lexicon polarity signal (see sentiment_service).
+        batch_results = sentiment_service.analyze_batch_with_routing(
+            texts_to_analyze, lexicon, use_code_switching=Config.USE_CODE_SWITCHING
+        )
 
         # Process results
         analyzed_rows = []
         sentiment_counts = {'positive': 0, 'neutral': 0, 'negative': 0}
+        language_counts: Dict[str, int] = {}
         total_confidence = 0.0
         trigger_word_counts: Dict[str, Dict] = {}
         entity_counts: Dict[str, int] = {}
+        model_counts: Dict[str, int] = {}
 
         for idx, (record, (sentiment, confidence, details)) in enumerate(zip(valid_records, batch_results)):
             text = texts_to_analyze[idx]
@@ -94,6 +102,8 @@ class BatchAnalysisService:
                 'sentiment': sentiment,
                 'confidence': round(confidence, 3),
                 'model_used': details.get('model', 'unknown'),
+                'language_detected': details.get('language_detected', 'unknown'),
+                'code_switching': details.get('code_switching', False),
                 'trigger_words': trigger_words,
                 'political_words': [
                     {'term': w['term'], 'meaning': w['meaning']}
@@ -115,6 +125,10 @@ class BatchAnalysisService:
             # Update aggregates
             sentiment_counts[sentiment] = sentiment_counts.get(sentiment, 0) + 1
             total_confidence += confidence
+            language = details.get('language_detected', 'unknown')
+            language_counts[language] = language_counts.get(language, 0) + 1
+            model_name = details.get('model', 'unknown')
+            model_counts[model_name] = model_counts.get(model_name, 0) + 1
 
             # Track trigger words
             for word_type in ('positive', 'negative'):
@@ -146,7 +160,10 @@ class BatchAnalysisService:
             reverse=True,
         )[:20]
 
-        model_used = analyzed_rows[0]['model_used'] if analyzed_rows else 'unknown'
+        # A batch can legitimately use more than one model now (English vs.
+        # multilingual routing) — summarize honestly rather than reporting
+        # just the first row's model as if it applied to the whole batch.
+        model_used = ', '.join(sorted(model_counts.keys())) if model_counts else 'unknown'
 
         # Persist to the database
         job_id = f'analysis-{collection_id}-{datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")}'
@@ -158,6 +175,7 @@ class BatchAnalysisService:
             total_rows=total_rows,
             avg_confidence=avg_confidence,
             model_used=model_used,
+            language_distribution=language_counts,
             sentiment_distribution=sentiment_counts,
             top_trigger_words=top_trigger_words,
             top_entities=top_entities,

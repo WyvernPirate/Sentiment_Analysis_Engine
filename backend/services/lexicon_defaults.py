@@ -31,6 +31,10 @@ DEFAULT_LEXICON = {
         'ra': {'meaning': 'we', 'frequency': 'medium'},
         'ta': {'meaning': 'will/shall', 'frequency': 'medium'},
         'tla': {'meaning': 'will come', 'frequency': 'medium'},
+        'gore': {'meaning': 'that/so that', 'frequency': 'high'},
+        'jaana': {'meaning': 'like this/now', 'frequency': 'medium'},
+        'rra': {'meaning': 'sir/mister (honorific)', 'frequency': 'high'},
+        'mma': {'meaning': 'madam/mrs (honorific)', 'frequency': 'high'},
     },
     'positive': {
         'monate': {'meaning': 'nice/pleasant', 'intensity': 'medium', 'context': 'general'},
@@ -49,6 +53,8 @@ DEFAULT_LEXICON = {
         'boammaaruri': {'meaning': 'truth/honesty', 'intensity': 'high', 'context': 'political'},
         'kutlwelobotlhoko': {'meaning': 'compassion', 'intensity': 'high', 'context': 'emotion'},
         'pabalesego': {'meaning': 'protection/safety', 'intensity': 'medium', 'context': 'political'},
+        'thuso': {'meaning': 'help/assistance', 'intensity': 'medium', 'context': 'general'},
+        'boikanyego': {'meaning': 'trustworthiness/reliability', 'intensity': 'high', 'context': 'political'},
     },
     'negative': {
         'botlhoko': {'meaning': 'painful/bad', 'intensity': 'high', 'context': 'general'},
@@ -66,6 +72,7 @@ DEFAULT_LEXICON = {
         'kgatelelo': {'meaning': 'oppression', 'intensity': 'very_high', 'context': 'political'},
         'tlhokafalo': {'meaning': 'poverty', 'intensity': 'high', 'context': 'social'},
         'dikgwetlho': {'meaning': 'challenges/difficulties', 'intensity': 'medium', 'context': 'general'},
+        'bogodu': {'meaning': 'theft', 'intensity': 'very_high', 'context': 'political'},
     },
     'political': {
         'mmuso': {'meaning': 'government', 'type': 'institution', 'context': 'governance'},
@@ -88,6 +95,9 @@ DEFAULT_LEXICON = {
         'ikonomi': {'meaning': 'economy', 'type': 'concept', 'context': 'economic'},
         'thuto': {'meaning': 'education', 'type': 'sector', 'context': 'social'},
         'boitekanelo': {'meaning': 'health', 'type': 'sector', 'context': 'social'},
+        'tekanyetso': {'meaning': 'budget', 'type': 'concept', 'context': 'economic'},
+        'kgaolo': {'meaning': 'district/region', 'type': 'institution', 'context': 'governance'},
+        'phatlalatso': {'meaning': 'announcement/declaration', 'type': 'process', 'context': 'governance'},
     },
     'botswana_specific': {
         'motswana': {'meaning': 'Botswana citizen', 'type': 'identity', 'context': 'national'},
