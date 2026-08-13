@@ -3,12 +3,17 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class Config:
     # Flask Configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
-    
+
     # Database Configuration
-    DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///botswana_sentiment.db'
+    # Absolute path, so the DB location doesn't depend on the process's CWD
+    # (e.g. `flask db migrate` vs `python app.py` vs a WSGI server can all
+    # have different working directories).
+    DATABASE_URL = os.environ.get('DATABASE_URL') or 'sqlite:///' + os.path.join(BASE_DIR, 'data', 'botswana_sentiment.db')
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     
@@ -39,9 +44,10 @@ class Config:
     FACEBOOK_APP_SECRET = os.environ.get('FACEBOOK_APP_SECRET')
     
     # Model Configuration
-    SENTIMENT_MODEL_PATH = './models/sentiment_model_setswana'
+    # Used for Setswana/code-switched text (see sentiment_service.detect_language
+    # + analyze_sentiment) — not a "fallback" in the unused sense it once was.
     FALLBACK_MODEL = 'cardiffnlp/twitter-xlm-roberta-base-sentiment-latest'
-    
+
     # Data Collection Configuration
     POLITICAL_KEYWORDS = [
         # English political terms
@@ -67,8 +73,9 @@ class Config:
     DATA_RETENTION_DAYS = 30  # How long to keep raw social media data
 
     # Feature toggles
-    # Set to True to enable Setswana-English code-switching detection and
-    # lexicon-enhanced analysis. Default is False for baseline deliverable.
-    USE_CODE_SWITCHING = os.environ.get('USE_CODE_SWITCHING', 'false').lower() == 'true'
-    # Baseline model path (scikit-learn pipeline). Used when transformers is not available.
-    BASELINE_MODEL_PATH = os.environ.get('BASELINE_MODEL_PATH') or './models/baseline_sentiment_model.joblib'
+    # Setswana-English code-switching detection routes Setswana/mixed text to
+    # a multilingual model (see FALLBACK_MODEL below) instead of scoring
+    # everything with the English-only model. On by default since it's the
+    # project's core differentiator; set to false to force English-only
+    # behavior (e.g. for a faster demo run without loading a second model).
+    USE_CODE_SWITCHING = os.environ.get('USE_CODE_SWITCHING', 'true').lower() == 'true'

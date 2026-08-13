@@ -2,9 +2,11 @@ import os
 
 from flask import Flask, jsonify
 from flask_cors import CORS
+from flask_migrate import Migrate, upgrade as migrate_upgrade
 
 # Import configuration
 from config import Config
+from extensions import db
 
 # Import route blueprints (only essentials)
 from routes.sentiment import sentiment_bp
@@ -17,13 +19,19 @@ from routes.system import system_bp
 from utils.logger import logger
 
 def create_app(config_class=Config):
-    
+
     app = Flask(__name__)
     app.config.from_object(config_class)
-    
+
+    # Ensure the sqlite file's parent directory exists before the DB connects
+    os.makedirs('data', exist_ok=True)
+
+    db.init_app(app)
+    Migrate(app, db)
+
     # Enable CORS for frontend communication
     CORS(app)
-    
+
     # Register only essential blueprints
     app.register_blueprint(sentiment_bp, url_prefix='/api/sentiment')
     app.register_blueprint(lexicon_bp, url_prefix='/api/lexicon')
@@ -88,7 +96,22 @@ if __name__ == '__main__':
     print("=" * 50)
     print("Starting on http://localhost:5000")
     print("CORS enabled for http://localhost:3000")
-    
+
+    with app.app_context():
+        # Bring the schema up to date (works from a totally fresh, empty
+        # sqlite file too, so a clone doesn't need a separate manual
+        # migration step to run `python app.py`), then seed baseline data
+        # and warm the in-memory lexicon projection. `flask db upgrade`
+        # does the same schema step for anyone who prefers running it
+        # explicitly (e.g. before deploying behind gunicorn).
+        migrate_upgrade()
+
+        from models import seed_defaults_if_empty
+        seed_defaults_if_empty()
+
+        from services.lexicon_manager import lexicon_manager
+        lexicon_manager.refresh()
+
     debug_mode = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
     host = os.environ.get('FLASK_HOST', '127.0.0.1')
     app.run(debug=debug_mode, host=host, port=5000)
