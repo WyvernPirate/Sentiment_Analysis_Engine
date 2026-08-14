@@ -34,45 +34,49 @@ Frontend default URL: `http://localhost:3000`
 - `POST /api/lexicon/add`
 - `GET /api/lexicon/health`
 - `GET /api/entities/`
+- `GET /api/entities/stats`
 - `POST /api/entities/add`
 - `DELETE /api/entities/<id>`
 - `GET /api/entities/health`
 - `GET /api/social/health`
-- `GET /api/social/auth-diagnose`
 - `POST /api/social/collect`
+- `POST /api/social/upload-csv`
 - `GET /api/social/collections`
 - `POST /api/social/clean`
+- `POST /api/analysis/run`
+- `GET /api/analysis/jobs`
+- `GET /api/analysis/jobs/<job_id>`
+- `GET /api/system/health`
+- `GET /api/system/logs`
+- `POST /api/system/event`
 
 ## Environment variables
 Frontend (`frontend/.env`):
 ```bash
-REACT_APP_API_URL=http://localhost:5000
+REACT_APP_API_URL=http://localhost:5000/api
 ```
 
-Backend (`backend/.env`):
+Backend (`backend/.env`) — see `backend/.env.example` for the full, current list. The
+social collection providers are Bright Data, Apify, and Twikit (`SOCIAL_PROVIDER` is
+one of `brightdata`/`apify`/`twikit`) — there is no `x_api` provider or Twitter-branded
+env vars; those were from an earlier design that was replaced. Facebook config was
+removed entirely since it was never implemented. `DATABASE_URL` and `SECRET_KEY` are
+the only Flask-level values most local setups need to override:
 ```bash
 SECRET_KEY=change-me
 DATABASE_URL=sqlite:///botswana_sentiment.db
-POLITICAL_ENTITY_DB_PATH=data/political_entities.db
-TWITTER_BEARER_TOKEN=your-bearer-token
-TWITTER_API_KEY=your-api-key
-TWITTER_API_SECRET=your-api-secret
-TWITTER_ACCESS_TOKEN=your-access-token
-TWITTER_ACCESS_TOKEN_SECRET=your-access-token-secret
-SOCIAL_PROVIDER=x_api
-BRIGHTDATA_API_TOKEN=your-brightdata-token
-BRIGHTDATA_COLLECTOR_URL=https://api.brightdata.com/your-collector-endpoint
-BRIGHTDATA_TIMEOUT_SECONDS=60
 ```
 
-## 3) Social data pipeline (X first)
-The first implementation slice uses approved X API access for recent keyword search, stores raw batches, then cleans them.
+## 3) Social data pipeline
+Three collection paths exist: CSV upload (works with no external account), Bright Data
+(URL-driven dataset scrape), and Apify (free-text query search). Twikit is a fourth,
+more fragile path using an authenticated X account — see `social_collector_service.py`
+for its known breakage/fallback behavior. Collected batches are cleaned via `/api/social/clean`.
 
-Collect data:
+Upload a CSV (no provider credentials needed):
 ```bash
-curl -X POST http://localhost:5000/api/social/collect \
-  -H "Content-Type: application/json" \
-  -d '{"provider": "x_api", "query": "(botswana politics OR #BotswanaPolitics) -is:retweet", "max_results": 20}'
+curl -X POST http://localhost:5000/api/social/upload-csv \
+  -F "file=@your-data.csv"
 ```
 
 Collect data with Bright Data provider:
@@ -127,8 +131,5 @@ curl -X POST http://localhost:5000/api/social/clean \
   ```
 - **Model download SSL/network failures**: app should still run using fallback behavior; `/api/health` should remain `healthy`.
 - **`externally-managed-environment` during `pip install`**: use a virtual environment (`python -m venv .venv_local`) and install with `.venv_local/bin/pip`.
-- **`/api/social/collect` returns 401 Unauthorized**:
-  1. Run `curl http://localhost:5000/api/social/auth-diagnose`.
-  2. Ensure `TWITTER_BEARER_TOKEN` is in `backend/.env` (not only `.env.example`).
-  3. Confirm token belongs to the same app/project with X API v2 access.
-  4. Restart backend after `.env` changes.
+- **`/api/social/collect` fails for a provider**: check `GET /api/social/health` — it reports which providers have credentials configured. Ensure the relevant `BRIGHTDATA_*`/`APIFY_*`/`TWIKIT_*` variables are in `backend/.env` (not only `.env.example`), then restart the backend.
+- **Fresh clone has no database / lexicon / entities**: not needed as a manual step — `python app.py` runs migrations and seeds baseline data automatically on startup. `flask db upgrade` also works standalone if you prefer to run it explicitly.

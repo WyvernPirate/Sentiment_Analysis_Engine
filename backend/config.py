@@ -38,11 +38,7 @@ class Config:
     TWIKIT_COOKIES_PATH = os.environ.get('TWIKIT_COOKIES_PATH', 'data/twikit_cookies.json')
     TWIKIT_LANGUAGE = os.environ.get('TWIKIT_LANGUAGE', 'en-US')
     TWIKIT_ENABLE_UI_METRICS = os.environ.get('TWIKIT_ENABLE_UI_METRICS', 'true').lower() == 'true'
-    
-    FACEBOOK_ACCESS_TOKEN = os.environ.get('FACEBOOK_ACCESS_TOKEN')
-    FACEBOOK_APP_ID = os.environ.get('FACEBOOK_APP_ID')
-    FACEBOOK_APP_SECRET = os.environ.get('FACEBOOK_APP_SECRET')
-    
+
     # Model Configuration
     # Used for Setswana/code-switched text (see sentiment_service.detect_language
     # + analyze_sentiment) — not a "fallback" in the unused sense it once was.
@@ -63,14 +59,6 @@ class Config:
         '#BotswanaPolitics', '#BDP2024', '#UDC2024', '#BotswanaElections',
         '#Masisi', '#Boko', '#BotswanaNews', '#BWPolitics'
     ]
-    
-    # Redis Configuration (for Celery)
-    REDIS_URL = os.environ.get('REDIS_URL') or 'redis://localhost:6379/0'
-    
-    # Data Collection Settings
-    COLLECTION_INTERVAL_MINUTES = 15  # How often to collect new data
-    MAX_TWEETS_PER_COLLECTION = 100
-    DATA_RETENTION_DAYS = 30  # How long to keep raw social media data
 
     # Feature toggles
     # Setswana-English code-switching detection routes Setswana/mixed text to

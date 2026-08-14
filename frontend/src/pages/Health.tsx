@@ -1,46 +1,49 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { sentimentApi } from '../services/sentimentApi';
 import { SystemHealth } from '../types/sentiment';
 
 const Health: React.FC = () => {
-  const [health, setHealth] = useState<SystemHealth | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
+  const queryClient = useQueryClient();
   const [command, setCommand] = useState('');
   const logEndRef = useRef<HTMLDivElement>(null);
 
-  const fetchDiagnostics = async () => {
-    try {
-      const [healthData, logData] = await Promise.all([
-        sentimentApi.checkSystemHealth(),
-        sentimentApi.getSystemLogs(100)
-      ]);
-      setHealth(healthData);
-      setLogs(logData);
-    } catch (err) {
-      console.error("Failed to fetch diagnostics", err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const healthQuery = useQuery<SystemHealth | null>({
+    queryKey: ['system-health'],
+    queryFn: () => sentimentApi.checkSystemHealth(),
+    refetchInterval: 5000,
+  });
 
-  useEffect(() => {
-    fetchDiagnostics();
-    const interval = setInterval(fetchDiagnostics, 5000);
-    return () => clearInterval(interval);
-  }, []);
+  const logsQuery = useQuery<string[]>({
+    queryKey: ['system-logs'],
+    queryFn: () => sentimentApi.getSystemLogs(100),
+    refetchInterval: 5000,
+  });
+
+  // Cast rather than rely on inference: @tanstack/react-query v5's generics
+  // don't fully resolve under this project's pinned TypeScript 4.9 (a known,
+  // separately-tracked upgrade candidate), so `.data` otherwise widens to `any`.
+  const health = (healthQuery.data ?? null) as SystemHealth | null;
+  const logs = (logsQuery.data ?? []) as string[];
+  const loading = healthQuery.isFetching || logsQuery.isFetching;
 
   useEffect(() => {
     logEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [logs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logs.length]);
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: ['system-health'] });
+    void queryClient.invalidateQueries({ queryKey: ['system-logs'] });
+  };
 
   const handleCommand = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!command.trim()) return;
-    
+
     await sentimentApi.logSystemEvent('INFO', `Manual Command Executed: ${command}`);
     setCommand('');
-    fetchDiagnostics();
+    refresh();
   };
 
   return (
@@ -51,12 +54,13 @@ const Health: React.FC = () => {
             <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">System Diagnostics</h1>
             <p className="text-on-surface-variant font-mono text-xs mt-2">HEALTH_MONITOR // LOG_STREAM</p>
           </div>
-          <button 
-            onClick={() => { setLoading(true); fetchDiagnostics(); }}
+          <button
+            onClick={refresh}
             disabled={loading}
-            className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all active:translate-y-0.5"
+            aria-label="Refresh diagnostics"
+            className="bg-surface-container-high hover:bg-surface-bright text-on-surface text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 border-b-2 border-primary transition-all active:translate-y-0.5 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
           >
-            <span className="material-symbols-outlined text-sm">refresh</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">refresh</span>
             {loading ? 'Refreshing...' : 'Refresh Stack'}
           </button>
         </div>
@@ -98,7 +102,7 @@ const Health: React.FC = () => {
                 </div>
               ))}
             </div>
-            
+
             <div className="mt-8 pt-4 border-t border-outline-variant/10">
               <h2 className="font-headline text-xs font-bold uppercase tracking-widest mb-4">Host Environment</h2>
               <div className="space-y-2 font-mono text-[10px]">
@@ -117,7 +121,7 @@ const Health: React.FC = () => {
           <div className="lg:col-span-2 bg-black border border-outline-variant/20 flex h-[calc(100vh-8.5rem)] min-h-[500px] flex-col overflow-hidden">
             <div className="bg-surface-container-high px-4 py-2 border-b border-outline-variant/20 flex justify-between items-center">
               <div className="flex items-center gap-3">
-                <div className="flex gap-1.5">
+                <div className="flex gap-1.5" aria-hidden="true">
                   <div className="w-2 h-2 rounded-full bg-error animate-pulse"></div>
                   <div className="w-2 h-2 rounded-full bg-primary"></div>
                   <div className="w-2 h-2 rounded-full bg-secondary"></div>
@@ -129,8 +133,12 @@ const Health: React.FC = () => {
                 <span className="text-[9px] font-mono text-on-surface-variant uppercase">FILTER: ALL</span>
               </div>
             </div>
-            
-            <div className="min-h-0 flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1 custom-scrollbar">
+
+            <div
+              role="log"
+              aria-live="polite"
+              className="min-h-0 flex-1 overflow-y-auto p-4 font-mono text-[11px] leading-relaxed bg-surface-container-lowest space-y-1 custom-scrollbar"
+            >
               {logs.length > 0 ? (
                 logs.map((log, idx) => {
                   return (
@@ -146,8 +154,9 @@ const Health: React.FC = () => {
             </div>
 
             <form onSubmit={handleCommand} className="bg-surface-container-high px-4 py-1.5 flex items-center border-t border-outline-variant/20">
-              <span className="text-primary font-mono text-[10px] mr-2">root@sentiment:~$</span>
+              <label htmlFor="diagnostic-command" className="text-primary font-mono text-[10px] mr-2">root@sentiment:~$</label>
               <input
+                id="diagnostic-command"
                 type="text"
                 value={command}
                 onChange={(e) => setCommand(e.target.value)}

@@ -1,113 +1,91 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { sentimentApi } from '../services/sentimentApi';
-import { PoliticalEntity, EntityStatsResponse } from '../types/sentiment';
+import { PoliticalEntity, EntityStatsResponse, SocialCollection } from '../types/sentiment';
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const Entities: React.FC = () => {
-  const [apiEntities, setApiEntities] = useState<PoliticalEntity[]>([]);
-  const [entityStats, setEntityStats] = useState<EntityStatsResponse | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
+  const queryClient = useQueryClient();
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [newEntity, setNewEntity] = useState({ entity: '', type: 'PARTY', full_name: '', description: '' });
-  const [liveFeed, setLiveFeed] = useState<Array<{
-    time: string;
-    provider: string;
-    query: string;
-    count: number;
-    entities: Array<{ name: string; count: number }>;
-    snippets: string[];
-  }>>([]);
+
+  const entitiesQuery = useQuery<PoliticalEntity[]>({
+    queryKey: ['political-entities'],
+    queryFn: () => sentimentApi.listPoliticalEntities(),
+  });
+  const statsQuery = useQuery<EntityStatsResponse | null>({
+    queryKey: ['entity-stats'],
+    queryFn: () => sentimentApi.getEntityStats(),
+  });
+  const collectionsQuery = useQuery<SocialCollection[]>({
+    queryKey: ['social-collections', 10],
+    queryFn: () => sentimentApi.listSocialCollections(10),
+    refetchInterval: 5000,
+  });
+
+  // Cast rather than rely on inference: @tanstack/react-query v5's generics
+  // don't fully resolve under this project's pinned TypeScript 4.9 (a known,
+  // separately-tracked upgrade candidate), so `.data` otherwise widens to `any`.
+  const apiEntities = useMemo(() => (entitiesQuery.data ?? []) as PoliticalEntity[], [entitiesQuery.data]);
+  const entityStats = (statsQuery.data ?? null) as EntityStatsResponse | null;
+  const loading = entitiesQuery.isFetching || statsQuery.isFetching;
 
   const trackedEntities = useMemo(
     () => apiEntities.map((entity) => entity.entity.trim()).filter(Boolean),
     [apiEntities]
   );
 
-  useEffect(() => {
-    let mounted = true;
+  const liveFeed = useMemo(() => {
+    const collections = (collectionsQuery.data ?? []) as SocialCollection[];
 
-    const loadFeed = async () => {
-      try {
-        const collections = await sentimentApi.listSocialCollections(10);
+    return collections.slice(0, 12).map((collection) => {
+      const meta = (collection.run_meta || {}) as Record<string, unknown>;
+      const preview = Array.isArray(meta.records_preview) ? (meta.records_preview as Array<Record<string, unknown>>) : [];
+      const textPool = [collection.query || '']
+        .concat(preview.map((record) => String(record.text_raw || record.text || record.content || '')))
+        .join(' ')
+        .toLowerCase();
 
-        const feed = collections.map((collection) => {
-          const meta = (collection.run_meta || {}) as Record<string, unknown>;
-          const preview = Array.isArray(meta.records_preview) ? (meta.records_preview as Array<Record<string, unknown>>) : [];
-          const textPool = [collection.query || '']
-            .concat(
-              preview.map((record) => String(record.text_raw || record.text || record.content || ''))
-            )
-            .join(' ')
-            .toLowerCase();
-
-          const entityCounts = new Map<string, number>();
-          trackedEntities.forEach((entity) => {
-            const regex = new RegExp(`\\b${escapeRegExp(entity)}\\b`, 'i');
-            const matchesInQuery = regex.test(collection.query || '');
-            const matchesInPreview = preview.some((record) => {
-              const recordText = String(record.text_raw || record.text || record.content || '');
-              return regex.test(recordText);
-            });
-
-            if (matchesInQuery || matchesInPreview || textPool.includes(entity.toLowerCase())) {
-              const previewMentions = preview.reduce((count, record) => {
-                const recordText = String(record.text_raw || record.text || record.content || '');
-                return count + (regex.test(recordText) ? 1 : 0);
-              }, 0);
-              entityCounts.set(entity, Math.max(1, previewMentions));
-            }
-          });
-
-          const snippets = preview
-            .map((record) => String(record.text_raw || record.text || record.content || '').trim())
-            .filter(Boolean)
-            .slice(0, 2)
-            .map((snippet) => (snippet.length > 150 ? `${snippet.slice(0, 150)}...` : snippet));
-
-          return {
-            time: collection.collected_at_utc || '',
-            provider: collection.source || 'x',
-            query: collection.query || '',
-            count: collection.count || 0,
-            entities: Array.from(entityCounts.entries()).map(([name, count]) => ({ name, count })),
-            snippets,
-          };
+      const entityCounts = new Map<string, number>();
+      trackedEntities.forEach((entity) => {
+        const regex = new RegExp(`\\b${escapeRegExp(entity)}\\b`, 'i');
+        const matchesInQuery = regex.test(collection.query || '');
+        const matchesInPreview = preview.some((record) => {
+          const recordText = String(record.text_raw || record.text || record.content || '');
+          return regex.test(recordText);
         });
 
-        if (mounted) setLiveFeed(feed.slice(0, 12));
-      } catch {
-        if (mounted) setLiveFeed([]);
-      }
-    };
+        if (matchesInQuery || matchesInPreview || textPool.includes(entity.toLowerCase())) {
+          const previewMentions = preview.reduce((count, record) => {
+            const recordText = String(record.text_raw || record.text || record.content || '');
+            return count + (regex.test(recordText) ? 1 : 0);
+          }, 0);
+          entityCounts.set(entity, Math.max(1, previewMentions));
+        }
+      });
 
-    void loadFeed();
-    const id = setInterval(() => { void loadFeed(); }, 5000);
-    return () => { mounted = false; clearInterval(id); };
-  }, [trackedEntities]);
+      const snippets = preview
+        .map((record) => String(record.text_raw || record.text || record.content || '').trim())
+        .filter(Boolean)
+        .slice(0, 2)
+        .map((snippet) => (snippet.length > 150 ? `${snippet.slice(0, 150)}...` : snippet));
 
-  const loadEntities = async () => {
-    setLoading(true);
-    try {
-      const [entities, stats] = await Promise.all([
-        sentimentApi.listPoliticalEntities(),
-        sentimentApi.getEntityStats(),
-      ]);
-      setApiEntities(entities);
-      setEntityStats(stats);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void loadEntities();
-  }, []);
+      return {
+        time: collection.collected_at_utc || '',
+        provider: collection.source || 'x',
+        query: collection.query || '',
+        count: collection.count || 0,
+        entities: Array.from(entityCounts.entries()).map(([name, count]) => ({ name, count })),
+        snippets,
+      };
+    });
+  }, [collectionsQuery.data, trackedEntities]);
 
   const filteredEntities = useMemo(() => {
-    return apiEntities.filter(ent => 
-      ent.entity.toLowerCase().includes(searchTerm.toLowerCase()) || 
+    return apiEntities.filter(ent =>
+      ent.entity.toLowerCase().includes(searchTerm.toLowerCase()) ||
       ent.full_name?.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [apiEntities, searchTerm]);
@@ -125,11 +103,16 @@ const Entities: React.FC = () => {
     });
   }, [filteredEntities, entityStats]);
 
+  const invalidateEntities = () => {
+    void queryClient.invalidateQueries({ queryKey: ['political-entities'] });
+    void queryClient.invalidateQueries({ queryKey: ['entity-stats'] });
+  };
+
   const handleDelete = async (id: number) => {
     if (window.confirm('Are you sure you want to delete this entity?')) {
       const ok = await sentimentApi.deletePoliticalEntity(id);
       if (ok) {
-        void loadEntities();
+        invalidateEntities();
       }
     }
   };
@@ -140,7 +123,7 @@ const Entities: React.FC = () => {
     if (res.ok) {
       setIsAddModalOpen(false);
       setNewEntity({ entity: '', type: 'PARTY', full_name: '', description: '' });
-      void loadEntities();
+      invalidateEntities();
     } else {
       alert(res.message);
     }
@@ -156,29 +139,39 @@ const Entities: React.FC = () => {
             <h1 className="text-4xl font-headline font-bold tracking-tight text-on-surface uppercase">Political Entities</h1>
             <p className="text-on-surface-variant font-mono text-xs mt-2">ENTITY_MANAGEMENT_SYSTEM</p>
           </div>
-          <button 
+          <button
             onClick={() => setIsAddModalOpen(true)}
-            className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 hover:brightness-110 transition-all"
+            className="bg-primary text-on-primary text-[10px] font-headline uppercase font-bold px-4 py-2 flex items-center gap-2 hover:brightness-110 transition-all focus-visible:outline focus-visible:outline-2 focus-visible:outline-on-primary"
           >
-            <span className="material-symbols-outlined text-sm">add</span>
+            <span className="material-symbols-outlined text-sm" aria-hidden="true">add</span>
             Add Entity
           </button>
         </div>
 
         {/* Add Entity Modal */}
         {isAddModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="add-entity-heading"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          >
             <div className="bg-surface-container-low border border-outline-variant/20 w-full max-w-md p-6 space-y-4">
               <div className="flex justify-between items-center border-b border-outline-variant/10 pb-3">
-                <h2 className="font-headline text-lg font-bold uppercase tracking-tight">Register New Entity</h2>
-                <button onClick={() => setIsAddModalOpen(false)} className="text-on-surface-variant hover:text-on-surface">
-                  <span className="material-symbols-outlined">close</span>
+                <h2 id="add-entity-heading" className="font-headline text-lg font-bold uppercase tracking-tight">Register New Entity</h2>
+                <button
+                  onClick={() => setIsAddModalOpen(false)}
+                  aria-label="Close dialog"
+                  className="text-on-surface-variant hover:text-on-surface focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                >
+                  <span className="material-symbols-outlined" aria-hidden="true">close</span>
                 </button>
               </div>
               <form onSubmit={handleAdd} className="space-y-4 font-mono text-[11px]">
                 <div className="space-y-1">
-                  <label className="text-on-surface-variant uppercase">Entity Short Name (ID)</label>
+                  <label htmlFor="entity-short-name" className="text-on-surface-variant uppercase">Entity Short Name (ID)</label>
                   <input
+                    id="entity-short-name"
                     required
                     type="text"
                     value={newEntity.entity}
@@ -188,8 +181,9 @@ const Entities: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-on-surface-variant uppercase">Entity Type</label>
+                  <label htmlFor="entity-type" className="text-on-surface-variant uppercase">Entity Type</label>
                   <select
+                    id="entity-type"
                     value={newEntity.type}
                     onChange={e => setNewEntity({ ...newEntity, type: e.target.value })}
                     className="w-full bg-surface-container-highest border border-outline-variant/20 px-3 py-2 text-on-surface focus:ring-1 focus:ring-primary focus:outline-none"
@@ -200,8 +194,9 @@ const Entities: React.FC = () => {
                   </select>
                 </div>
                 <div className="space-y-1">
-                  <label className="text-on-surface-variant uppercase">Full Legal Name</label>
+                  <label htmlFor="entity-full-name" className="text-on-surface-variant uppercase">Full Legal Name</label>
                   <input
+                    id="entity-full-name"
                     type="text"
                     value={newEntity.full_name}
                     onChange={e => setNewEntity({ ...newEntity, full_name: e.target.value })}
@@ -239,8 +234,10 @@ const Entities: React.FC = () => {
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Entity Registry</h2>
             <div className="flex items-center gap-2 bg-surface-container-lowest border border-outline-variant/20 px-3 py-1.5">
-              <span className="material-symbols-outlined text-sm text-on-surface-variant">search</span>
+              <span className="material-symbols-outlined text-sm text-on-surface-variant" aria-hidden="true">search</span>
+              <label htmlFor="entity-filter" className="sr-only">Filter entities</label>
               <input
+                id="entity-filter"
                 type="text"
                 placeholder="FILTER_ENTITY..."
                 value={searchTerm}
@@ -268,9 +265,10 @@ const Entities: React.FC = () => {
                     <td className="py-3 text-right">
                       <button
                         onClick={() => handleDelete(entity.id)}
-                        className="text-tertiary hover:text-tertiary/80 transition-colors"
+                        aria-label={`Delete ${entity.name}`}
+                        className="text-tertiary hover:text-tertiary/80 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-tertiary"
                       >
-                        <span className="material-symbols-outlined text-sm">delete</span>
+                        <span className="material-symbols-outlined text-sm" aria-hidden="true">delete</span>
                       </button>
                     </td>
                     <td className="py-3 text-right">{entity.mentions || '--'}</td>

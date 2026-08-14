@@ -57,7 +57,9 @@ const ManualAnalyzer: React.FC = () => {
               Input Text
             </h2>
             <form onSubmit={handleSubmit} className="space-y-3">
+              <label htmlFor="analyzer-input" className="sr-only">Text to analyze</label>
               <textarea
+                id="analyzer-input"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 placeholder="Enter English, Setswana, or mixed text to analyze..."
@@ -98,7 +100,7 @@ const ManualAnalyzer: React.FC = () => {
             </div>
           </section>
 
-          <section className="bg-surface-container-low border border-outline-variant/10 p-5">
+          <section className="bg-surface-container-low border border-outline-variant/10 p-5" aria-live="polite">
             <h2 className="font-headline text-xs font-bold uppercase tracking-widest text-primary mb-4">
               Result
             </h2>

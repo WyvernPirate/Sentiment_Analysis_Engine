@@ -31,7 +31,7 @@ const Sidebar: React.FC = () => {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 space-y-1">
+      <nav className="flex-1 space-y-1" aria-label="Main navigation">
         {NAV_ITEMS.map((item) => (
           <NavLink
             key={item.to}
@@ -44,7 +44,7 @@ const Sidebar: React.FC = () => {
               }`
             }
           >
-            <span className="material-symbols-outlined">{item.icon}</span>
+            <span className="material-symbols-outlined" aria-hidden="true">{item.icon}</span>
             <span>{item.label}</span>
           </NavLink>
         ))}
@@ -52,7 +52,7 @@ const Sidebar: React.FC = () => {
 
       <div className="mx-4 p-3 border border-outline-variant/20 bg-surface-container-high flex items-center gap-3">
         <div className="w-8 h-8 bg-surface-container-highest border border-primary/30 flex items-center justify-center">
-          <span className="material-symbols-outlined text-primary text-sm">person</span>
+          <span className="material-symbols-outlined text-primary text-sm" aria-hidden="true">person</span>
         </div>
         <div>
           <p className="font-mono text-[10px] text-on-surface">ANALYST_01</p>
