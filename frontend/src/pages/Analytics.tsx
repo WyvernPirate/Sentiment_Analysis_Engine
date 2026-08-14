@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { PieChart, Pie, Cell } from 'recharts';
 import { sentimentApi } from '../services/sentimentApi';
 import {
   SocialCollection,
@@ -295,11 +296,11 @@ const Analytics: React.FC = () => {
   const pctNeu = total ? Math.round((dist!.neutral / total) * 100) : 0;
   const pctNeg = total ? 100 - pctPos - pctNeu : 0;
 
-  // SVG donut math
-  const circumference = 2 * Math.PI * 40;
-  const posArc = (pctPos / 100) * circumference;
-  const neuArc = (pctNeu / 100) * circumference;
-  const negArc = (pctNeg / 100) * circumference;
+  const pieData = [
+    { key: 'positive' as SentimentFilter, name: 'Positive', value: dist?.positive ?? 0, color: '#86bdf7' },
+    { key: 'neutral' as SentimentFilter, name: 'Neutral', value: dist?.neutral ?? 0, color: '#adaaaa' },
+    { key: 'negative' as SentimentFilter, name: 'Negative', value: dist?.negative ?? 0, color: '#ff716c' },
+  ];
 
   return (
     <>
@@ -461,21 +462,34 @@ const Analytics: React.FC = () => {
                 </h2>
                 <div className="flex items-center justify-center gap-10">
                   <div className="relative w-48 h-48">
-                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="40" fill="transparent" stroke="#86bdf7" strokeWidth="18"
-                        strokeDasharray={`${posArc} ${circumference - posArc}`} strokeDashoffset="0"
-                        className={`opacity-80 hover:opacity-100 transition-all cursor-pointer ${sentimentFilter === 'positive' ? 'opacity-100 stroke-[22]' : ''}`}
-                        onClick={() => setSentimentFilter('positive')} />
-                      <circle cx="50" cy="50" r="40" fill="transparent" stroke="#adaaaa" strokeWidth="18"
-                        strokeDasharray={`${neuArc} ${circumference - neuArc}`} strokeDashoffset={`${-posArc}`}
-                        className={`opacity-80 hover:opacity-100 transition-all cursor-pointer ${sentimentFilter === 'neutral' ? 'opacity-100 stroke-[22]' : ''}`}
-                        onClick={() => setSentimentFilter('neutral')} />
-                      <circle cx="50" cy="50" r="40" fill="transparent" stroke="#ff716c" strokeWidth="18"
-                        strokeDasharray={`${negArc} ${circumference - negArc}`} strokeDashoffset={`${-(posArc + neuArc)}`}
-                        className={`opacity-80 hover:opacity-100 transition-all cursor-pointer ${sentimentFilter === 'negative' ? 'opacity-100 stroke-[22]' : ''}`}
-                        onClick={() => setSentimentFilter('negative')} />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <PieChart width={192} height={192}>
+                      <Pie
+                        data={pieData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={58}
+                        outerRadius={80}
+                        paddingAngle={total ? 2 : 0}
+                        startAngle={90}
+                        endAngle={-270}
+                        isAnimationActive={false}
+                        onClick={(entry: any) => setSentimentFilter(entry.key as SentimentFilter)}
+                      >
+                        {pieData.map((entry) => (
+                          <Cell
+                            key={entry.key}
+                            fill={entry.color}
+                            fillOpacity={sentimentFilter === entry.key ? 1 : 0.8}
+                            stroke={sentimentFilter === entry.key ? entry.color : 'none'}
+                            strokeWidth={sentimentFilter === entry.key ? 2 : 0}
+                            style={{ cursor: 'pointer' }}
+                          />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                       <span className="font-headline text-2xl font-black text-on-surface">{total}</span>
                       <span className="font-mono text-[8px] text-on-surface-variant uppercase">Analyzed</span>
                     </div>

@@ -5,8 +5,6 @@ interface AnalyticsContextType {
   endDate: string;
   setStartDate: (date: string) => void;
   setEndDate: (date: string) => void;
-  isFilterVisible: boolean;
-  setIsFilterVisible: (visible: boolean) => void;
 }
 
 const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefined);
@@ -14,16 +12,13 @@ const AnalyticsContext = createContext<AnalyticsContextType | undefined>(undefin
 export const AnalyticsProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [isFilterVisible, setIsFilterVisible] = useState(false);
 
   return (
-    <AnalyticsContext.Provider value={{ 
-      startDate, 
-      endDate, 
-      setStartDate, 
+    <AnalyticsContext.Provider value={{
+      startDate,
+      endDate,
+      setStartDate,
       setEndDate,
-      isFilterVisible,
-      setIsFilterVisible
     }}>
       {children}
     </AnalyticsContext.Provider>

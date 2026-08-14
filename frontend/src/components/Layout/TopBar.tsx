@@ -15,12 +15,15 @@ const TopBar: React.FC = () => {
       <div className="flex items-center gap-4">
         {/* Icon buttons */}
         <div className="flex gap-2 relative">
-          <button 
+          <button
             className={`p-2 transition-colors relative group ${showDatePicker ? 'text-primary bg-surface-container-high' : 'text-on-surface-variant hover:text-primary hover:bg-surface-container-high'}`}
             onClick={() => setShowDatePicker(!showDatePicker)}
+            aria-label="Date range filter"
+            aria-expanded={showDatePicker}
+            aria-haspopup="true"
           >
-            <span className="material-symbols-outlined">calendar_today</span>
-            {(startDate || endDate) && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full"></span>}
+            <span className="material-symbols-outlined" aria-hidden="true">calendar_today</span>
+            {(startDate || endDate) && <span className="absolute top-1 right-1 w-1.5 h-1.5 bg-primary rounded-full" aria-hidden="true"></span>}
             
             {/* Tooltip */}
             <span className="absolute -bottom-10 left-1/2 -translate-x-1/2 bg-surface-container-highest text-[8px] font-mono py-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap z-50">
