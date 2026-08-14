@@ -74,3 +74,40 @@ def test_entities_add_route_requires_fields(client):
 def test_entities_delete_route_404_for_missing(client):
     response = client.delete('/api/entities/999999')
     assert response.status_code == 404
+
+
+def test_bulk_entity_stats_computed_from_real_analysis_jobs(app, stub_pipelines):
+    """Phase 4: Entities.tsx used to show hardcoded 0/'N/A'/'LOW' for every
+    entity regardless of data. Confirm the aggregation is now real.
+    """
+    import io
+    client = app.test_client()
+
+    csv_content = (
+        b'text\n'
+        b'Masisi praised the new policy\n'
+    )
+    upload = client.post(
+        '/api/social/upload-csv',
+        data={'file': (io.BytesIO(csv_content), 't.csv')},
+        content_type='multipart/form-data',
+    )
+    collection_id = upload.get_json()['collection_id']
+    client.post('/api/analysis/run', json={'collection_id': collection_id})
+
+    response = client.get('/api/entities/stats')
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['total_mentions'] >= 1
+    assert 'Masisi' in body['entities']
+    assert body['entities']['Masisi']['mentions'] == 1
+    assert body['entities']['Masisi']['risk'] in ('LOW', 'MED', 'HIGH')
+
+
+def test_bulk_entity_stats_empty_when_no_jobs(app):
+    response = app.test_client().get('/api/entities/stats')
+    assert response.status_code == 200
+    body = response.get_json()
+    assert body['entities'] == {}
+    assert body['total_mentions'] == 0
+    assert body['high_risk_count'] == 0

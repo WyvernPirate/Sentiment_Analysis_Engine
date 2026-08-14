@@ -1,15 +1,27 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { NavLink } from 'react-router-dom';
 
-interface SidebarProps {
-  isAnalytics: boolean;
-  isEntities: boolean;
-  isScraping: boolean;
-  isHealth: boolean;
-  isLexicon: boolean;
+interface NavItem {
+  to: string;
+  icon: string;
+  label: string;
 }
 
-const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, isHealth, isLexicon }) => {
+// Each new page needs one entry here — NavLink computes its own active
+// state from the current route, so (unlike the previous isAnalytics/
+// isEntities/... boolean-prop pattern) DashboardLayout doesn't need to know
+// the route list at all, and adding a page can't drift out of sync the way
+// LexiconManager's missing sidebar offset once did.
+const NAV_ITEMS: NavItem[] = [
+  { to: '/analytics', icon: 'monitoring', label: 'Analytics' },
+  { to: '/analyze', icon: 'search', label: 'Manual Analyzer' },
+  { to: '/entities', icon: 'database', label: 'Political Entities' },
+  { to: '/scraping', icon: 'rss_feed', label: 'Scraping Sources' },
+  { to: '/health', icon: 'monitor_heart', label: 'System Diagnostics' },
+  { to: '/lexicon', icon: 'dictionary', label: 'Lexicon Pool' },
+];
+
+const Sidebar: React.FC = () => {
   return (
     <aside className="fixed left-0 top-0 h-full w-64 border-r border-outline-variant/15 bg-surface-container-low flex flex-col py-8 z-40">
       {/* Header */}
@@ -20,65 +32,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isAnalytics, isEntities, isScraping, 
 
       {/* Navigation */}
       <nav className="flex-1 space-y-1">
-        <Link
-          to="/analytics"
-          className={`flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
-            isAnalytics
-              ? 'text-primary border-l-2 border-primary bg-surface-container-high'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined">monitoring</span>
-          <span>Analytics</span>
-        </Link>
-
-        <Link
-          to="/entities"
-          className={`flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
-            isEntities
-              ? 'text-primary border-l-2 border-primary bg-surface-container-high'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined">database</span>
-          <span>Political Entities</span>
-        </Link>
-
-        <Link
-          to="/scraping"
-          className={`flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
-            isScraping
-              ? 'text-primary border-l-2 border-primary bg-surface-container-high'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined">rss_feed</span>
-          <span>Scraping Sources</span>
-        </Link>
-
-        <Link
-          to="/health"
-          className={`flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
-            isHealth
-              ? 'text-primary border-l-2 border-primary bg-surface-container-high'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined">monitor_heart</span>
-          <span>System Diagnostics</span>
-        </Link>
-        
-        <Link
-          to="/lexicon"
-          className={`flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
-            isLexicon
-              ? 'text-primary border-l-2 border-primary bg-surface-container-high'
-              : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
-          }`}
-        >
-          <span className="material-symbols-outlined">dictionary</span>
-          <span>Lexicon Pool</span>
-        </Link>
+        {NAV_ITEMS.map((item) => (
+          <NavLink
+            key={item.to}
+            to={item.to}
+            className={({ isActive }) =>
+              `flex items-center gap-3 py-3 px-4 font-mono text-[11px] uppercase tracking-widest transition-all ${
+                isActive
+                  ? 'text-primary border-l-2 border-primary bg-surface-container-high'
+                  : 'text-on-surface-variant hover:text-on-surface hover:bg-surface-container-high'
+              }`
+            }
+          >
+            <span className="material-symbols-outlined">{item.icon}</span>
+            <span>{item.label}</span>
+          </NavLink>
+        ))}
       </nav>
 
       <div className="mx-4 p-3 border border-outline-variant/20 bg-surface-container-high flex items-center gap-3">

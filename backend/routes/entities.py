@@ -11,6 +11,20 @@ def list_entities():
     entities = political_entity_service.list_entities(entity_type)
     return jsonify({'entities': entities, 'count': len(entities)})
 
+# Endpoint returning real mention counts + net sentiment + risk level per
+# entity, aggregated from recent analysis jobs. Replaces what used to be
+# hardcoded 0/'N/A'/'LOW' values on the frontend.
+@entities_bp.route('/stats', methods=['GET'])
+def entity_stats():
+    stats = political_entity_service.get_bulk_entity_stats()
+    total_mentions = sum(s['mentions'] for s in stats.values())
+    high_risk_count = sum(1 for s in stats.values() if s['risk'] == 'HIGH')
+    return jsonify({
+        'entities': stats,
+        'total_mentions': total_mentions,
+        'high_risk_count': high_risk_count,
+    })
+
 # Endpoint to add a new political entity
 @entities_bp.route('/add', methods=['POST'])
 def add_entity():

@@ -6,13 +6,6 @@ interface CsvPreviewRow extends SocialInputItem {
   isValid: boolean;
 }
 
-const FALLBACK_SOURCES = [
-  { source: 'X API Stream', region: 'BW', status: 'ONLINE', recordsPerMin: 486, failureRate: '0.2%' },
-  { source: 'Facebook Public Feed', region: 'BW', status: 'ONLINE', recordsPerMin: 221, failureRate: '0.9%' },
-  { source: 'News RSS Cluster', region: 'SADC', status: 'DEGRADED', recordsPerMin: 77, failureRate: '3.1%' },
-  { source: 'Community Forums', region: 'BW', status: 'ONLINE', recordsPerMin: 92, failureRate: '1.2%' },
-];
-
 const TEXT_COLUMN_NAMES = [
   'text', 'text_raw', 'content', 'tweet', 'message', 'post',
   'body', 'description', 'full_text', 'tweet_text', 'post_text',
@@ -271,63 +264,29 @@ const Scraping: React.FC = () => {
   const totalIngested = useMemo(() => collections.reduce((acc, row) => acc + (row.count || 0), 0), [collections]);
 
   const recentEvents = useMemo(() => {
-    if (!collections.length) {
-      return [
-        '14:09:11 | CONNECTOR x-api-eu-west recovered',
-        '14:03:28 | rss-botswana timeout spike detected',
-        '13:57:05 | queue rebalance completed',
-      ];
-    }
-
     return collections.slice(0, 3).map((item) => {
       const timestamp = new Date(item.collected_at_utc).toLocaleTimeString([], { hour12: false });
       return `${timestamp} | ${item.collection_id} ingested ${item.count} records`;
     });
   }, [collections]);
 
-  const sourceRows = useMemo(() => {
-    if (!socialHealth) {
-      return FALLBACK_SOURCES;
-    }
+  // Only "configured" (real: whether the provider's env vars/tokens are set,
+  // per GET /api/social/health) is shown here — the previous version also
+  // showed per-provider records/min and failure-rate figures that had no
+  // real backend source and were either hardcoded or borrowed an unrelated
+  // collection's total count and relabeled it as a rate.
+  const sourceRows = useMemo(() => [
+    { source: 'Bright Data', configured: socialHealth?.brightdata_configured ?? false },
+    { source: 'Apify', configured: socialHealth?.apify_configured ?? false },
+    { source: 'Twikit', configured: socialHealth?.twikit_configured ?? false },
+    { source: 'CSV Upload', configured: true },
+  ], [socialHealth]);
 
-    return [
-      {
-        source: 'Bright Data Provider',
-        region: 'GLOBAL',
-        status: socialHealth.brightdata_configured ? 'ONLINE' : 'DEGRADED',
-        recordsPerMin: collections[0]?.count || 0,
-        failureRate: socialHealth.brightdata_configured ? '0.3%' : '100%',
-      },
-      {
-        source: 'Apify Provider',
-        region: 'GLOBAL',
-        status: socialHealth.apify_configured ? 'ONLINE' : 'DEGRADED',
-        recordsPerMin: collections[1]?.count || 0,
-        failureRate: socialHealth.apify_configured ? '0.6%' : '100%',
-      },
-      {
-        source: 'Twikit Provider',
-        region: 'BW',
-        status: socialHealth.twikit_configured ? 'ONLINE' : 'DEGRADED',
-        recordsPerMin: collections[2]?.count || 0,
-        failureRate: socialHealth.twikit_configured ? '1.1%' : '100%',
-      },
-      {
-        source: 'CSV Upload',
-        region: 'LOCAL',
-        status: 'ONLINE',
-        recordsPerMin: 0,
-        failureRate: '0%',
-      },
-    ];
-  }, [socialHealth, collections]);
-
-  const activeSources = sourceRows.filter((row) => row.status === 'ONLINE').length;
+  const activeSources = sourceRows.filter((row) => row.configured).length;
   const invalidCsvCount = csvPreviewRows.filter((row) => !row.isValid).length;
-  const previewRows = csvPreviewRows.slice(0, 8);
 
   return (
-    <div className="ml-64 pt-14 min-h-screen bg-surface">
+    <>
       <div className="p-6 space-y-6">
         <div className="flex items-end justify-between border-b border-outline-variant/10 pb-4">
           <div>
@@ -406,6 +365,16 @@ const Scraping: React.FC = () => {
                         />
                         <span className="font-mono text-[10px] text-on-surface-variant group-hover:text-secondary uppercase">Auto-Filter</span>
                       </label>
+                      {autoClean && (
+                        <select
+                          value={filterMode}
+                          onChange={(e) => setFilterMode(e.target.value as 'relaxed' | 'strict')}
+                          className="bg-surface-container-lowest border border-outline-variant/20 text-[10px] font-mono px-2 py-1 outline-none uppercase"
+                        >
+                          <option value="relaxed">RELAXED</option>
+                          <option value="strict">STRICT</option>
+                        </select>
+                      )}
                       <button
                         onClick={() => void handleCollect()}
                         disabled={actionLoading}
@@ -498,7 +467,13 @@ const Scraping: React.FC = () => {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="font-mono text-[10px] text-on-surface-variant">HEALTH_STATUS</span>
-                  <span className="font-mono text-[10px] text-secondary bg-secondary/10 px-2 py-0.5 rounded">OPTIMAL</span>
+                  <span
+                    className={`font-mono text-[10px] px-2 py-0.5 rounded ${
+                      socialHealth ? 'text-secondary bg-secondary/10' : 'text-tertiary bg-tertiary/10'
+                    }`}
+                  >
+                    {socialHealth ? socialHealth.status.toUpperCase() : 'UNKNOWN'}
+                  </span>
                 </div>
               </div>
             </div>
@@ -509,6 +484,9 @@ const Scraping: React.FC = () => {
                 <span className="text-[10px] font-mono text-outline-variant/50 animate-pulse italic">LIVE</span>
               </div>
               <div className="space-y-1.5 font-mono text-[9px] overflow-y-auto scrollbar-hide">
+                {recentEvents.length === 0 && !loading && (
+                  <p className="text-on-surface-variant/50 italic">No collections yet.</p>
+                )}
                 {recentEvents.map((evt, i) => (
                   <p key={i} className={`${i === 0 ? 'text-secondary font-bold' : 'text-on-surface-variant'}`}>
                     {evt}
@@ -637,10 +615,10 @@ const Scraping: React.FC = () => {
 
         <section className="bg-surface-container-low border border-outline-variant/10 p-4">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Global Provider Status</h2>
+            <h2 className="font-headline text-xs font-bold uppercase tracking-widest">Provider Configuration</h2>
             <div className="flex items-center gap-4 font-mono text-[9px]">
-               <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full"></span> NOMINAL</div>
-               <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-tertiary rounded-full"></span> OFFLINE</div>
+               <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-secondary rounded-full"></span> CONFIGURED</div>
+               <div className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 bg-tertiary rounded-full"></span> NOT_CONFIGURED</div>
             </div>
           </div>
           <div className="overflow-x-auto">
@@ -648,22 +626,16 @@ const Scraping: React.FC = () => {
               <thead>
                 <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
                   <th className="pb-2 font-normal">Source_Node</th>
-                  <th className="pb-2 font-normal text-right">Region</th>
-                  <th className="pb-2 font-normal text-right">Vector_Status</th>
-                  <th className="pb-2 font-normal text-right">Ingestion_Rate</th>
-                  <th className="pb-2 font-normal text-right">Error_Delta</th>
+                  <th className="pb-2 font-normal text-right">Status</th>
                 </tr>
               </thead>
               <tbody className="font-mono text-[10px]">
                 {sourceRows.map((row) => (
                   <tr key={row.source} className="border-b border-outline-variant/5 hover:bg-surface-container-high transition-colors group">
                     <td className="py-4 text-primary font-bold">{row.source}</td>
-                    <td className="py-4 text-right text-on-surface-variant">{row.region}</td>
-                    <td className={`py-4 text-right font-mono font-bold ${row.status === 'ONLINE' ? 'text-secondary' : 'text-tertiary'}`}>
-                      {row.status === 'ONLINE' ? 'ACTIVE_SCAN' : 'AUTH_FAILED'}
+                    <td className={`py-4 text-right font-mono font-bold ${row.configured ? 'text-secondary' : 'text-tertiary'}`}>
+                      {row.configured ? 'CONFIGURED' : 'NOT_CONFIGURED'}
                     </td>
-                    <td className="py-4 text-right font-mono">{row.recordsPerMin} R/min</td>
-                    <td className="py-4 text-right font-mono text-outline-variant/50 group-hover:text-on-surface transition-colors">{row.failureRate}</td>
                   </tr>
                 ))}
               </tbody>
@@ -671,7 +643,7 @@ const Scraping: React.FC = () => {
           </div>
         </section>
       </div>
-    </div>
+    </>
   );
 };
 

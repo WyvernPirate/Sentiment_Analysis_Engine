@@ -1,7 +1,11 @@
+export type Sentiment = 'positive' | 'neutral' | 'negative';
+
 export interface SentimentResult {
-    sentiment: string;
+    sentiment: Sentiment;
     confidence: number;
     model_used: string;
+    language_detected: string;
+    code_switching: boolean;
     word_count: number;
     matched_political_words: Array<{ term: string; meaning: string; start: number; end: number }>;
     sentiment_words: {
@@ -18,7 +22,7 @@ export interface SentimentResult {
 export interface TestExample {
     text: string;
     description: string;
-    expected: string;
+    expected: Sentiment;
 }
 
 export interface HealthStatus {
@@ -36,6 +40,26 @@ export interface PoliticalEntity {
     full_name?: string;
     description?: string;
     created_at: string;
+}
+
+// Real, backend-computed per-entity mention/sentiment aggregation
+// (GET /api/entities/stats) — replaces what used to be hardcoded
+// 0/'N/A'/'LOW' placeholder values on the frontend.
+export interface EntityStatsEntry {
+    mentions: number;
+    sentiment_counts: {
+        positive: number;
+        neutral: number;
+        negative: number;
+    };
+    net_sentiment: number;
+    risk: 'LOW' | 'MED' | 'HIGH';
+}
+
+export interface EntityStatsResponse {
+    entities: Record<string, EntityStatsEntry>;
+    total_mentions: number;
+    high_risk_count: number;
 }
 
 export interface SocialHealthStatus {
@@ -98,9 +122,11 @@ export interface SocialCleanResponse {
 export interface AnalyzedRow {
     row_index: number;
     text: string;
-    sentiment: string;
+    sentiment: Sentiment;
     confidence: number;
     model_used: string;
+    language_detected: string;
+    code_switching: boolean;
     trigger_words: {
         positive: string[];
         negative: string[];
@@ -122,6 +148,8 @@ export interface AggregateStats {
         neutral: number;
         negative: number;
     };
+    // Per detected language (English / Setswana / Setswana-English) -> row count.
+    language_distribution?: Record<string, number>;
     avg_confidence: number;
     top_trigger_words: Array<{ word: string; count: number; type: string }>;
     top_entities: Array<{ entity: string; count: number }>;
@@ -170,4 +198,35 @@ export interface SystemHealth {
         status: string;
         latency: string;
     }>;
+}
+
+// --- Lexicon Types ---
+// Previously redefined locally in LexiconManager.tsx instead of living here
+// alongside every other API response shape.
+
+export interface LexiconWordDetails {
+    meaning: string;
+    intensity?: string;
+    context?: string;
+    type?: string;
+    frequency?: string;
+    source?: string;
+    added_date?: string;
+    last_modified?: string;
+}
+
+export interface LexiconStats {
+    category_stats: Record<string, { word_count: number; recent_additions: number }>;
+    metadata: {
+        version: string;
+        last_updated: string | null;
+        total_words: number;
+    };
+    total_words: number;
+}
+
+export interface LexiconSearchResult {
+    word: string;
+    category: string;
+    details: LexiconWordDetails;
 }

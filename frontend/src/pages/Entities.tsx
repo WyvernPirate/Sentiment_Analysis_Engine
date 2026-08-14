@@ -1,18 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { sentimentApi } from '../services/sentimentApi';
-import { PoliticalEntity } from '../types/sentiment';
+import { PoliticalEntity, EntityStatsResponse } from '../types/sentiment';
 
 const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
-const FALLBACK_ENTITIES = [
-  { name: 'BDP', aliases: 19, mentions24h: 1282, netSentiment: '+0.55', risk: 'LOW' },
-  { name: 'UDC', aliases: 14, mentions24h: 1033, netSentiment: '-0.12', risk: 'MED' },
-  { name: 'BCP', aliases: 11, mentions24h: 618, netSentiment: '+0.05', risk: 'LOW' },
-  { name: 'BPF', aliases: 9, mentions24h: 407, netSentiment: '-0.27', risk: 'HIGH' },
-];
-
 const Entities: React.FC = () => {
   const [apiEntities, setApiEntities] = useState<PoliticalEntity[]>([]);
+  const [entityStats, setEntityStats] = useState<EntityStatsResponse | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -96,8 +90,12 @@ const Entities: React.FC = () => {
   const loadEntities = async () => {
     setLoading(true);
     try {
-      const entities = await sentimentApi.listPoliticalEntities();
+      const [entities, stats] = await Promise.all([
+        sentimentApi.listPoliticalEntities(),
+        sentimentApi.getEntityStats(),
+      ]);
       setApiEntities(entities);
+      setEntityStats(stats);
     } finally {
       setLoading(false);
     }
@@ -115,22 +113,19 @@ const Entities: React.FC = () => {
   }, [apiEntities, searchTerm]);
 
   const tableRows = useMemo(() => {
-    if (!filteredEntities.length && !searchTerm) {
-      return FALLBACK_ENTITIES.map(ent => ({ ...ent, id: -1 }));
-    }
-
-    return filteredEntities.map((item) => ({
-      id: item.id,
-      name: item.entity,
-      aliases: item.full_name ? 2 : 1,
-      mentions24h: 0,
-      netSentiment: 'N/A',
-      risk: 'LOW',
-    }));
-  }, [filteredEntities, searchTerm]);
+    return filteredEntities.map((item) => {
+      const stats = entityStats?.entities[item.entity];
+      return {
+        id: item.id,
+        name: item.entity,
+        mentions: stats?.mentions ?? 0,
+        netSentiment: stats ? stats.net_sentiment : null,
+        risk: stats?.risk ?? 'LOW',
+      };
+    });
+  }, [filteredEntities, entityStats]);
 
   const handleDelete = async (id: number) => {
-    if (id === -1) return;
     if (window.confirm('Are you sure you want to delete this entity?')) {
       const ok = await sentimentApi.deletePoliticalEntity(id);
       if (ok) {
@@ -151,10 +146,10 @@ const Entities: React.FC = () => {
     }
   };
 
-  const trackedCount = apiEntities.length || 42;
+  const trackedCount = apiEntities.length;
 
   return (
-    <div className="ml-64 pt-14 min-h-screen bg-surface">
+    <>
       <div className="p-6 space-y-6">
         <div className="flex items-end justify-between border-b border-outline-variant/10 pb-4">
           <div>
@@ -230,12 +225,12 @@ const Entities: React.FC = () => {
             <p className="text-3xl font-headline font-bold text-primary mt-2">{trackedCount}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
-            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Total Mentions (24h)</p>
-            <p className="text-3xl font-headline font-bold text-secondary mt-2">5,941</p>
+            <p className="font-mono text-[10px] uppercase text-on-surface-variant">Total Mentions</p>
+            <p className="text-3xl font-headline font-bold text-secondary mt-2">{entityStats?.total_mentions ?? 0}</p>
           </div>
           <div className="bg-surface-container-low border border-outline-variant/10 p-4">
             <p className="font-mono text-[10px] uppercase text-on-surface-variant">High-Risk Entities</p>
-            <p className="text-3xl font-headline font-bold text-tertiary mt-2">3</p>
+            <p className="text-3xl font-headline font-bold text-tertiary mt-2">{entityStats?.high_risk_count ?? 0}</p>
           </div>
         </section>
 
@@ -261,8 +256,7 @@ const Entities: React.FC = () => {
                 <tr className="text-left font-mono text-[9px] text-on-surface-variant uppercase border-b border-outline-variant/20">
                   <th className="pb-2 font-normal">Entity</th>
                   <th className="pb-2 font-normal text-right">Action</th>
-                  <th className="pb-2 font-normal text-right">Aliases</th>
-                  <th className="pb-2 font-normal text-right">Mentions 24H</th>
+                  <th className="pb-2 font-normal text-right">Mentions</th>
                   <th className="pb-2 font-normal text-right">Net Sentiment</th>
                   <th className="pb-2 font-normal text-right">Risk</th>
                 </tr>
@@ -272,27 +266,28 @@ const Entities: React.FC = () => {
                   <tr key={entity.name} className="border-b border-outline-variant/10 hover:bg-surface-container-high transition-colors">
                     <td className="py-3 text-primary font-bold">{entity.name}</td>
                     <td className="py-3 text-right">
-                      {entity.id !== -1 && (
-                        <button 
-                          onClick={() => handleDelete(entity.id)}
-                          className="text-tertiary hover:text-tertiary/80 transition-colors"
-                        >
-                          <span className="material-symbols-outlined text-sm">delete</span>
-                        </button>
-                      )}
+                      <button
+                        onClick={() => handleDelete(entity.id)}
+                        className="text-tertiary hover:text-tertiary/80 transition-colors"
+                      >
+                        <span className="material-symbols-outlined text-sm">delete</span>
+                      </button>
                     </td>
-                    <td className="py-3 text-right">{entity.aliases}</td>
-                    <td className="py-3 text-right">{entity.mentions24h || '--'}</td>
+                    <td className="py-3 text-right">{entity.mentions || '--'}</td>
                     <td
                       className={`py-3 text-right ${
-                        entity.netSentiment === 'N/A'
+                        entity.netSentiment === null
                           ? 'text-on-surface-variant'
-                          : entity.netSentiment.startsWith('+')
+                          : entity.netSentiment > 0
                             ? 'text-secondary'
-                            : 'text-tertiary'
+                            : entity.netSentiment < 0
+                              ? 'text-tertiary'
+                              : 'text-on-surface-variant'
                       }`}
                     >
-                      {entity.netSentiment}
+                      {entity.netSentiment === null
+                        ? 'N/A'
+                        : `${entity.netSentiment > 0 ? '+' : ''}${entity.netSentiment.toFixed(2)}`}
                     </td>
                     <td
                       className={`py-3 text-right ${
@@ -310,21 +305,6 @@ const Entities: React.FC = () => {
           </div>
 
           {/* Ingestion Protocols removed - simplified layout */}
-        </section>
-
-        <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="bg-surface-container-low border border-outline-variant/15 p-4">
-            <p className="font-headline text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Ingestion Latency</p>
-            <p className="font-mono text-3xl font-bold text-secondary">142<span className="text-xs ml-1">ms</span></p>
-          </div>
-          <div className="bg-surface-container-low border border-outline-variant/15 p-4">
-            <p className="font-headline text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Payload Error Rate</p>
-            <p className="font-mono text-3xl font-bold text-on-surface">0.04<span className="text-xs ml-1">%</span></p>
-          </div>
-          <div className="bg-surface-container-low border border-outline-variant/15 p-4">
-            <p className="font-headline text-[10px] uppercase tracking-widest text-on-surface-variant mb-2">Compute Utilization</p>
-            <p className="font-mono text-3xl font-bold text-primary">68.2<span className="text-xs ml-1">%</span></p>
-          </div>
         </section>
 
         <section className="bg-surface-container-low border border-outline-variant/15 p-4">
@@ -366,7 +346,7 @@ const Entities: React.FC = () => {
           </div>
         </section>
       </div>
-    </div>
+    </>
   );
 };
 
