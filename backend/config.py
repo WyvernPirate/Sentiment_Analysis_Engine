@@ -42,7 +42,7 @@ class Config:
     # Model Configuration
     # Used for Setswana/code-switched text (see sentiment_service.detect_language
     # + analyze_sentiment) — not a "fallback" in the unused sense it once was.
-    FALLBACK_MODEL = 'cardiffnlp/twitter-xlm-roberta-base-sentiment-latest'
+    FALLBACK_MODEL = 'cardiffnlp/twitter-xlm-roberta-base-sentiment'
 
     # Data Collection Configuration
     POLITICAL_KEYWORDS = [

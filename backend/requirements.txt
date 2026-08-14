@@ -8,6 +8,12 @@ transformers==5.5.0
 # for local dev and demo purposes, e.g.:
 #   pip install torch==2.13.0 --index-url https://download.pytorch.org/whl/cpu
 torch==2.13.0
+# Required for the multilingual (XLM-RoBERTa) tokenizer used for Setswana/
+# code-switched routing — without these, transformers' fast-tokenizer
+# conversion silently mis-detects the model's SentencePiece file as a
+# tiktoken file and raises a confusing ValueError instead of loading it.
+sentencepiece==0.2.2
+protobuf==7.35.1
 requests==2.33.0
 python-dotenv==1.2.2
 psutil==6.1.0
